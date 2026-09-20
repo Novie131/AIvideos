@@ -1,0 +1,26 @@
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+
+# macOS
+.DS_Store
+
+# 產出的影音檔 —— 絕不進 repo，會讓體積迅速失控
+# 出圖 / 配音 / 合成成品都可以由 script.json 重新產生
+projects/*/shots/
+projects/*/audio/
+projects/*/out/
+*.png
+*.jpg
+*.jpeg
+*.wav
+*.mp3
+*.mp4
+*.mov
+
+# 例外：角色訓練資料集是人工精選的成果，不可重生，必須進 repo
+!characters/*/dataset/
+!characters/*/dataset/**
+!characters/*/ref/
+!characters/*/ref/**

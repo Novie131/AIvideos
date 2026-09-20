@@ -1,0 +1,88 @@
+{
+  "title": "橘貓穿越古埃及",
+  "hook": "小橘在現代的家裡突然被吸進漩渦",
+  "character": "Xiao Ju",
+  "shots": [
+    {
+      "id": 1,
+      "duration_sec": 3,
+      "action": "小橘在現代的家裡突然被吸進漩渦",
+      "image_prompt": "a small round-faced orange and white tabby cat, distinct M-shaped stripe on forehead, a small white notch on the tip of the right ear, large amber eyes, wearing a worn dark blue cloth collar with a small brass bell, white-tipped tail, standing in a modern living room with a vortex swirling around it, warm lighting, static camera, vertical composition, cinematic lighting",
+      "narration": "這裡…不是我家",
+      "subtitle": "這裡不是我家",
+      "camera": "static"
+    },
+    {
+      "id": 2,
+      "duration_sec": 3,
+      "action": "小橘被吸進漩渦後，落在一座龐大的金字塔前",
+      "image_prompt": "a small round-faced orange and white tabby cat, distinct M-shaped stripe on forehead, a small white notch on the tip of the right ear, large amber eyes, wearing a worn dark blue cloth collar with a small brass bell, white-tipped tail, lying on the ground in front of a massive pyramid, golden sunlight, static camera, vertical composition, cinematic lighting",
+      "narration": "我…我該怎麼辦",
+      "subtitle": "我該怎麼辦",
+      "camera": "static"
+    },
+    {
+      "id": 3,
+      "duration_sec": 3,
+      "action": "小橘被埃及工人發現，被當成神明的寵物帶走",
+      "image_prompt": "a small round-faced orange and white tabby cat, distinct M-shaped stripe on forehead, a small white notch on the tip of the right ear, large amber eyes, wearing a worn dark blue cloth collar with a small brass bell, white-tipped tail, being carried by an Egyptian worker, golden sunlight, static camera, vertical composition, cinematic lighting",
+      "narration": "他們把我當神明",
+      "subtitle": "他們把我當神明",
+      "camera": "static"
+    },
+    {
+      "id": 4,
+      "duration_sec": 3,
+      "action": "小橘在神殿裡被供奉，卻發現自己被囚禁在金屬盒中",
+      "image_prompt": "a small round-faced orange and white tabby cat, distinct M-shaped stripe on forehead, a small white notch on the tip of the right ear, large amber eyes, wearing a worn dark blue cloth collar with a small brass bell, white-tipped tail, locked in a golden box inside a temple, golden sunlight, static camera, vertical composition, cinematic lighting",
+      "narration": "我…不是神明",
+      "subtitle": "我不是神明",
+      "camera": "static"
+    },
+    {
+      "id": 5,
+      "duration_sec": 3,
+      "action": "小橘用尾巴勾住鈴鐺，驚慌地撞向神像",
+      "image_prompt": "a small round-faced orange and white tabby cat, distinct M-shaped stripe on forehead, a small white notch on the tip of the right ear, large amber eyes, wearing a worn dark blue cloth collar with a small brass bell, white-tipped tail, knocking against a statue with its tail, golden sunlight, static camera, vertical composition, cinematic lighting",
+      "narration": "我只想回家",
+      "subtitle": "我只想回家",
+      "camera": "static"
+    },
+    {
+      "id": 6,
+      "duration_sec": 3,
+      "action": "小橘撞碎神像，金屬盒裂開，光芒四射",
+      "image_prompt": "a small round-faced orange and white tabby cat, distinct M-shaped stripe on forehead, a small white notch on the tip of the right ear, large amber eyes, wearing a worn dark blue cloth collar with a small brass bell, white-tipped tail, knocking against a golden statue, golden sunlight, static camera, vertical composition, cinematic lighting",
+      "narration": "我…逃出去了",
+      "subtitle": "我逃出去了",
+      "camera": "static"
+    },
+    {
+      "id": 7,
+      "duration_sec": 3,
+      "action": "小橘逃出神殿，回到現代的家，卻發現所有東西都變了",
+      "image_prompt": "a small round-faced orange and white tabby cat, distinct M-shaped stripe on forehead, a small white notch on the tip of the right ear, large amber eyes, wearing a worn dark blue cloth collar with a small brass bell, white-tipped tail, running through a modern apartment with strange objects, warm lighting, static camera, vertical composition, cinematic lighting",
+      "narration": "我…回家了",
+      "subtitle": "我回家了",
+      "camera": "static"
+    },
+    {
+      "id": 8,
+      "duration_sec": 3,
+      "action": "小橘發現現代的家裡多了個陌生的小孩",
+      "image_prompt": "a small round-faced orange and white tabby cat, distinct M-shaped stripe on forehead, a small white notch on the tip of the right ear, large amber eyes, wearing a worn dark blue cloth collar with a small brass bell, white-tipped tail, sitting in a modern living room with a little child, warm lighting, static camera, vertical composition, cinematic lighting",
+      "narration": "這是…誰的家",
+      "subtitle": "這是誰的家",
+      "camera": "static"
+    },
+    {
+      "id": 9,
+      "duration_sec": 3,
+      "action": "小橘驚訝地看著小孩，小孩卻對牠笑",
+      "image_prompt": "a small round-faced orange and white tabby cat, distinct M-shaped stripe on forehead, a small white notch on the tip of the right ear, large amber eyes, wearing a worn dark blue cloth collar with a small brass bell, white-tipped tail, sitting in a modern living room with a little child smiling at it, warm lighting, static camera, vertical composition, cinematic lighting",
+      "narration": "我…有新的家了",
+      "subtitle": "我有新家了",
+      "camera": "static"
+    }
+  ]
+}

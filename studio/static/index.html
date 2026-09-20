@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AI Shorts Studio</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<header>
+  <div class="brand">AI Shorts Studio <span class="sub">local · $0</span></div>
+  <div class="pills" id="health"></div>
+  <div class="mem">
+    <div class="mem-bar"><div class="mem-fill" id="memFill"></div></div>
+    <div class="mem-txt" id="memTxt">—</div>
+    <div class="loaded" id="loaded"></div>
+    <label class="auto" title="腳本產完且佇列清空時，自動把 LLM 踢出記憶體，讓圖片模型載得進來">
+      <input type="checkbox" id="autoUnload" checked> 自動釋放</label>
+  </div>
+</header>
+
+<div id="notice" hidden></div>
+<main>
+  <aside>
+    <div class="panel">
+      <h3>新建一集</h3>
+      <label>題材</label>
+      <input id="idea" placeholder="橘貓穿越古埃及">
+      <label>代號 <span class="hint">資料夾名稱</span></label>
+      <input id="slug" placeholder="ep002-dino">
+      <label>主角</label>
+      <select id="character"></select>
+      <label>LLM 模型</label>
+      <select id="model"></select>
+
+      <details>
+        <summary>微調設定</summary>
+        <div class="row">
+          <div><label>Shot 數 <span class="hint" id="shotHint"></span></label><input id="nShots" type="number" value="5" min="3" max="12"></div>
+          <div><label>總長(秒)</label><input id="duration" type="number" value="15" min="8" max="60" step="5"></div>
+        </div>
+        <label>Temperature <span class="hint" id="tempVal">0.8</span></label>
+        <input id="temp" type="range" min="0.1" max="1.4" step="0.05" value="0.8">
+        <label class="chk"><input id="think" type="checkbox"> 思考模式（慢很多，可能較好）</label>
+      </details>
+
+      <button class="primary" id="genBtn">生成腳本</button>
+    </div>
+
+    <div class="panel">
+      <h3>專案 <button class="mini" id="refreshBtn">↻</button></h3>
+      <div id="projects" class="list"></div>
+    </div>
+  </aside>
+
+  <section id="work">
+    <div class="empty" id="empty">
+      <p>左邊輸入題材開始，或點一個既有專案。</p>
+    </div>
+
+    <div id="editor" hidden>
+      <div class="ed-head">
+        <div>
+          <h2 id="edTitle">—</h2>
+          <div class="meta" id="edMeta"></div>
+        </div>
+        <div class="ed-actions">
+          <button id="endingsBtn">結尾 A/B/C</button>
+          <button class="primary" id="saveBtn">儲存</button>
+        </div>
+      </div>
+
+      <div class="issues" id="issues" hidden></div>
+      <div id="endings" class="endings" hidden></div>
+      <div id="shots" class="shots"></div>
+
+      <details class="critique">
+        <summary>監製審稿意見</summary>
+        <pre id="critique"></pre>
+      </details>
+    </div>
+  </section>
+
+  <aside class="right">
+    <div class="panel">
+      <h3>佇列</h3>
+      <div class="hint mb">序列執行，一次只跑一個任務（16GB 限制）</div>
+      <div id="jobs" class="list"></div>
+    </div>
+  </aside>
+</main>
+
+<script src="/static/app.js"></script>
+</body>
+</html>

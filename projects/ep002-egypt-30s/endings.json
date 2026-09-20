@@ -1,0 +1,43 @@
+{
+  "endings": [
+    {
+      "label": "A",
+      "why": "穿越的真相是它一直在等一個人",
+      "shot": {
+        "id": 0,
+        "duration_sec": 3,
+        "action": "小橘在孩子懷裡慢慢閉上眼睛，孩子輕聲說出「你是我媽媽的貓」",
+        "image_prompt": "a small round-faced orange and white tabby cat, distinct M-shaped stripe on forehead, a small white notch on the tip of the right ear, large amber eyes, wearing a worn dark blue cloth collar with a small brass bell, white-tipped tail, lying in a child's arms with closed eyes, warm lighting, static camera, vertical composition, cinematic lighting, tail curled gently around the child's arm",
+        "narration": "我…等你很久了",
+        "subtitle": "我等你很久了",
+        "camera": "static"
+      }
+    },
+    {
+      "label": "B",
+      "why": "失去的愛在時間中慢慢消逝",
+      "shot": {
+        "id": 0,
+        "duration_sec": 3,
+        "action": "孩子緊緊抱住小橘，但小橘逐漸透明化，最後化為塵埃",
+        "image_prompt": "a small round-faced orange and white tabby cat, distinct M-shaped stripe on forehead, a small white notch on the tip of the right ear, large amber eyes, wearing a worn dark blue cloth collar with a small brass bell, white-tipped tail, fading into transparency in a child's arms, warm lighting, static camera, vertical composition, cinematic lighting, tail gently dissolving",
+        "narration": "我…回不去了",
+        "subtitle": "我回不去了",
+        "camera": "static"
+      }
+    },
+    {
+      "label": "C",
+      "why": "重逢是因為愛的延續",
+      "shot": {
+        "id": 0,
+        "duration_sec": 3,
+        "action": "孩子拿出一隻和小橘一模一樣的貓咪，小橘在貓咪眼中看到自己的倒影",
+        "image_prompt": "a small round-faced orange and white tabby cat, distinct M-shaped stripe on forehead, a small white notch on the tip of the right ear, large amber eyes, wearing a worn dark blue cloth collar with a small brass bell, white-tipped tail, looking into the eyes of a new cat in a child's arms, warm lighting, static camera, vertical composition, cinematic lighting, tail curling gently",
+        "narration": "我…回家了",
+        "subtitle": "我回家了",
+        "camera": "static"
+      }
+    }
+  ]
+}

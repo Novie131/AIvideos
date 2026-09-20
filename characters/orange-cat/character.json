@@ -1,0 +1,9 @@
+{
+  "name": "小橘",
+  "name_en": "Xiao Ju",
+  "species": "橘貓",
+  "appearance_zh": "一隻圓臉橘白虎斑貓，額頭有 M 形條紋，右耳尖端有一小塊白色缺角，琥珀色大眼睛，脖子上戴一條磨損的深藍色布項圈，項圈上掛著一枚黃銅小鈴鐺。體型偏小，尾巴末端是白色的。",
+  "appearance_en": "a small round-faced orange and white tabby cat, distinct M-shaped stripe on forehead, a small white notch on the tip of the right ear, large amber eyes, wearing a worn dark blue cloth collar with a small brass bell, white-tipped tail",
+  "personality": "膽小但重感情，遇到危險會先躲起來，但為了在乎的人會硬著頭皮衝出去。",
+  "note": "每個 shot 的 image_prompt 都必須完整包含 appearance_en，不可簡寫或省略。"
+}

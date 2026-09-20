@@ -1,0 +1,411 @@
+# AI Shorts 地端產線 — 規劃與研究方向
+
+- 版本：**v2**
+- 更新日期：**2026-09-20**
+- 上一版：v1（2026-09-08，SDXL + IP-Adapter 路線，本版已部分推翻）
+
+---
+
+## 0. 這份文件的用途與閱讀規則
+
+這是本專案的**單一事實來源**。任何人（或任何 AI session）接手時，先讀這份，不要重新從 `Document/ChatGPT.txt` 推導 —— 那是最初的外部建議，已被多次修正。
+
+每個結論都標記可信度，不要把推定當事實：
+
+| 標記 | 意思 |
+|---|---|
+| `[已驗證]` | 在這台機器上實際跑過 / 直接看到檔案 |
+| `[官方規格]` | 官方文件或 release note 說的，但沒在這台機器上驗證 |
+| `[推定]` | 從規格推算，沒有直接來源 |
+| `[待驗]` | 假設，必須實測才能定 |
+
+**改動規則**：推翻任何決策時，不要刪掉舊決策 —— 移到 §4 的 ADR 並標記「已推翻」，寫清楚為什麼。歷史比結論值錢。
+
+---
+
+## 1. 目標與硬約束
+
+**目標**：產出 1080x1920 的 YouTube Shorts，題材含貓狗、悲情、擬人水果、穿越時空。以**固定角色形成 IP**（首位角色：橘貓「小橘」）。
+
+**硬約束**：
+
+| 約束 | 內容 | 可不可以放寬 |
+|---|---|---|
+| 硬體 | MacBook M2 / 16GB unified memory | 不可 |
+| 成本 | 完全免費 | 不可 |
+| 地端 | 全部在本機跑 | **一次性任務可例外**，見 §6.5 |
+| 品質 | 要能真的發布，不是 demo | 不可 |
+
+**「地端」這條為什麼可以有例外**：這條約束真正要保護的是「每支片的邊際成本為零 + 不依賴外部 API 存活」。一次性的訓練任務（每個角色只做一次）拿去免費雲端跑，不破壞這個目的。但**推論永遠留在地端**，沒有商量餘地。
+
+---
+
+## 2. 現況快照（2026-09-20）
+
+### 已完成
+
+| 階段 | 狀態 | 檔案 |
+|---|---|---|
+| 本機 Web Studio（FastAPI，:8765） | ✅ 可用 | `studio/server.py`、`run.sh` |
+| 編劇 → 監製審查 → 自動改寫 | ✅ 可用 | `studio/scriptgen.py` |
+| 硬性檢查（旁白 4.5 字/秒、角色外觀一致性、簡體字偵測） | ✅ 可用 | `scriptgen.py:151` `check()` |
+| 運鏡自動分配 | ✅ 可用 | `scriptgen.py:212` `assign_cameras()` |
+| 結尾 A/B 變體 | ✅ 可用 | `scriptgen.py` `ENDINGS` |
+| 序列工作佇列（單 worker） | ✅ 可用 | `studio/jobs.py` |
+| 後端健康檢查 + 記憶體監控 + 主動 unload | ✅ 可用 | `studio/backends.py` |
+| 角色設定 | ✅ 小橘已鎖定 | `characters/orange-cat/character.json` |
+| 腳本產出 | ✅ ep001（15秒）、ep002（30秒） | `projects/` |
+
+### 未完成（從這裡開始就是空白）
+
+| 階段 | 狀態 |
+|---|---|
+| 文生圖 | ❌ 零程式碼 |
+| 角色一致性機制 | ❌ 未選定（本文件要解決的主題） |
+| TTS 配音 | ❌ 未安裝、零程式碼 |
+| ffmpeg 合成（Ken Burns / 字幕 / 混音） | ❌ 零程式碼（只在健康檢查出現過） |
+| BGM / 音效 | ❌ 未規劃 |
+| 上片 metadata | ❌ 未規劃 |
+
+### 環境 `[已驗證]`
+
+```
+ffmpeg   /opt/homebrew/bin/ffmpeg
+ollama   /opt/homebrew/bin/ollama    （已載 qwen3:8b，5.2GB）
+uv       /opt/homebrew/bin/uv        （Python 3.12，不碰系統 3.9.6）
+Draw Things.app  /Applications/      （版本未確認 — 見 Q0）
+macOS    Darwin 25.6.0
+```
+
+**一句話總結進度**：腳本層做完且做得紮實，**影像層一行都沒有**。手上只有 JSON，離 mp4 差三個模組。
+
+---
+
+## 3. 核心問題
+
+> **在 M2 16GB、免費、地端的條件下，讓「小橘」在每個 shot、每一集之間長得一模一樣。**
+
+這不是加分項，是**存亡點**，理由有二：
+
+1. **商業面**：YouTube 2025-07 的 inauthentic content 政策，大量重複無差異的 AI 內容不能營利。固定角色 IP 是對沖這條政策的路線。
+2. **複利面**：角色能延續，觀眾才會追。每集換一隻不同的橘貓，這條線就只是內容農場。
+
+小橘的辨識特徵（`character.json` 已鎖定，**任何方案都必須保住這幾項**）：
+
+- 圓臉橘白虎斑
+- 額頭 **M 形條紋**
+- **右耳尖端一小塊白色缺角** ← 最難保、最關鍵
+- 琥珀色大眼
+- 磨損的深藍色布項圈 + **黃銅小鈴鐺** ← 第二難保
+- 尾巴末端白色
+
+**驗收時盯這兩項**：右耳缺角、鈴鐺。這兩個守得住，其他都守得住。
+
+---
+
+## 4. 架構決策紀錄（ADR）
+
+### ADR-001 — LLM：Ollama + Qwen3 8B Q4 `[已驗證]` ✅ 沿用
+
+中文能力鎖定在具體型號，不是泛稱 4B~8B。佔 5.2GB。已實際產出兩份可用腳本。
+
+### ADR-002 — 圖像後端：Draw Things `[官方規格]` ✅ 沿用（**理由已更新**）
+
+v1 的理由是「它有 SDXL 的 IP-Adapter」。ADR-003/004 推翻底模後，那個理由失效了，但結論**更強**了。現在的理由：
+
+1. **不用 PyTorch** — 自己的 Metal 推論引擎（s4nnc）。torch-MPS 在 16GB 上有兩個慢性病：部分 op 無 Metal 實作會 fallback 回 CPU（慢 10 倍）、記憶體不釋放導致 swap。
+2. **它是 Mac 上唯一同時支援 Z-Image + Qwen-Image-Edit 2509 + 這兩者 LoRA 訓練的原生應用**。ComfyUI 要在 16GB 湊齊這三件事是地獄。
+3. **有 HTTP API（:7860）** — 管線只需要「能程式呼叫」，這點滿足。
+4. 內建訓練器，見 ADR-005。
+
+**已知代價**（接受，但要管理）：
+
+- App 必須開著、API 要手動勾 → **不能 headless、不能排程**。見 Q6。
+- 模型設定活在 App 裡不在 repo 裡 → 可重現性差。
+  **緩解**：所有參數（checkpoint / steps / cfg / seed / 負面詞）一律寫進專案的 style preset，每次呼叫都從 API 帶過去，**絕不依賴 App 的 UI 狀態**。
+- API 文件比 A1111 少。
+
+**不綁死的做法**：Draw Things 關在 `studio/imagegen.py` 後面，對外只暴露
+`render_shot(prompt, seed, refs) -> png`。換後端 = 改一個檔案，腳本層與合成層不動。
+
+### ADR-003 — 底模：SDXL → **Z-Image Turbo** ⛔ v1 已推翻
+
+**v1 決定**：SDXL，768x1344 生成 → 1.4x upscale → 1080x1920。
+
+**推翻理由** `[官方規格]`：Z-Image Turbo（阿里，6B）在每個維度都贏：
+
+| | SDXL | Z-Image Turbo |
+|---|---|---|
+| 參數 | 3.5B | 6B |
+| 量化後佔用 | ~6GB+ | **~4GiB（6-bit）** |
+| 步數 | 25~30 | **8** |
+| 16GB 上速度 | 數十秒 | **2~3 秒/張** |
+| 提示詞遵循 | 普通 | 強 |
+| 中文字渲染 | 不行 | 可以 |
+| Draw Things 最佳化 | 一般 | 比其他實作快 54% |
+
+**2~3 秒/張的意義**：一個 shot 可以重抽 20 次都不心疼。這直接改變工作流 —— 從「珍惜每一次生成」變成「暴力篩選」。
+
+**Z-Image 的缺口** `[官方規格]`：
+
+- ❌ **Z-Image-Edit 尚未釋出**
+- ❌ **ControlNet 尚未支援**（Draw Things issue #73 仍開著）
+- 一致性只能靠固定提示詞區塊 + 固定 seed + 參考圖 → **會飄**
+
+所以 Z-Image Turbo 是最好的**產生器**，不是一致性的答案。一致性交給 ADR-004。
+
+### ADR-004 — 一致性：IP-Adapter → **Qwen-Image-Edit 2509** ⛔ v1 已推翻
+
+**v1 決定**：SDXL + IP-Adapter。
+
+**推翻理由** `[官方規格]`：出現了專門做這件事的模型。**Qwen-Image-Edit 2509**（Draw Things 自 1.20250930.0 起支援）：
+
+- 吃**多張輸入圖**，換場景 / 換姿勢 / 換服裝時保住主體身分
+- 官方說法：直接取代 FLUX Kontext 與所有前代
+- 內建 ControlNet（depth / lineart / pose）
+- 代價：**20B 模型**，FP16 約 45GB，**INT4 約 11GB** → 16GB 上塞得下，但很緊
+
+**備選**：FLUX.1 Kontext dev（12B），同概念但更輕，4-bit `[推定]` ~7GB。若 Qwen-Edit 在 16GB 上慢到不可用，這是降級選項。
+
+**關鍵未知**：沒有任何公開數據測過「M2 16GB + Qwen-Edit 2509 INT4」的秒/張。**這個數字決定整條線可不可行**，必須實測（§6）。
+
+### ADR-005 — LoRA 訓練：必經 → **保險方案** ⬇️ 降級
+
+**v1 認知**：M2 16GB 訓練很痛苦，需自建 20~40 張資料集。
+
+**修正** `[官方規格]`：那是 kohya_ss / diffusers 走 MPS 那條路的實況（macOS 支援本來就差）。Draw Things 自己的訓練器是另一回事：
+
+- 支援 SD1.5 / SDXL / FLUX.1 / **FLUX.2 [klein] 4B、9B / Z Image / Qwen Image / ERNIE**
+- **Minimal / Balanced 記憶體模式 + Just-in-Time 權重載入 + Metal FlashAttention v2**（省 20~25% RAM）
+- 官方門檻降到 **8GB RAM**
+- 舊的「SDXL 512 需 ~12GB」數字只適用 SDXL，不代表 Z-Image / Qwen
+
+**新定位**：訓練不是必經之路，是 §6 全掛之後的保險。而且屆時是訓 6B 的 Z-Image LoRA，不是原本那個 SDXL 苦工。
+
+### ADR-006 — 動態：ffmpeg Ken Burns（一階段）✅ 沿用
+
+先用 ffmpeg 的推拉搖做假動態就上架。LTX-MLX I2V 列為第二階段可插拔模組，先 benchmark 再決定。理由：先把整條線打通拿到回饋，比先把單一環節做到最好重要。
+
+### ADR-007 — TTS：Kokoro v1.1-zh `[待驗]` ✅ 沿用但未驗證
+
+Piper 中文品質差，已排除。Kokoro **尚未安裝、尚未試聽**。見 Q4。
+
+### ADR-008 — 記憶體策略：序列載入 ✅ 沿用（**強化**）
+
+16GB unified memory 的唯一活路：**一次只載一個重模型，每階段用完立刻 unload**。`studio/jobs.py` 的單 worker 佇列就是為此設計。
+
+新的記憶體預算表（含 §5 的新模型）：
+
+| 元件 | 佔用 | 來源 |
+|---|---|---|
+| macOS 基線 | ~3~4GB | `[推定]` |
+| Ollama Qwen3 8B Q4 | 5.2GB | `[已驗證]` |
+| Z-Image Turbo 6-bit | ~4GiB | `[官方規格]` |
+| Qwen-Image-Edit 2509 INT4 | ~11GB | `[官方規格]` |
+| FLUX Kontext dev 4-bit | ~7GB | `[推定]` |
+| Kokoro TTS | <1GB | `[推定]` |
+| ffmpeg | 可忽略 | — |
+
+**結論**：`Qwen-Edit(11) + 基線(4) = 15GB`，已經貼著天花板。**任何兩個重模型同時在記憶體裡都會 swap。** 序列載入不是最佳化，是生存條件。
+
+### ADR-009 — 已排除項目（不要再回頭研究）
+
+| 排除項 | 理由 |
+|---|---|
+| vLLM | 無 Metal backend，Mac 上根本跑不動 |
+| ComfyUI | torch-MPS 記憶體與 CPU fallback；湊齊新模型支援是地獄 |
+| 裸 diffusers | 同上，且要自己補 MPS 的洞 |
+| 原生 1080p diffusion | 16GB 不可能 |
+| 同時載入多模型 | 見 ADR-008 |
+| kohya_ss on Mac | macOS 支援差，社群一路踩坑；Draw Things 內建訓練器取代之 |
+| IP-Adapter FaceID / InstantID / PuLID / PhotoMaker | **全部基於人臉辨識，對貓無效** |
+
+---
+
+## 5. 角色一致性 — 候選方案全景
+
+| # | 方案 | 需訓練 | RAM | 預期一致性 | 狀態 |
+|---|---|---|---|---|---|
+| **A** | Qwen-Image-Edit 2509（多圖輸入） | ❌ | ~11GB | 最高 | `[待驗]` **首選** |
+| **B** | FLUX.1 Kontext dev | ❌ | ~7GB `[推定]` | 高 | `[待驗]` 降級選項 |
+| **C** | Z-Image Turbo + 鎖死提示詞區塊 + 固定 seed | ❌ | ~4GiB | 中（會飄） | `[待驗]` 最快最省 |
+| **D** | Z-Image / Qwen LoRA（Draw Things 內建訓練器） | ✅ | 訓練 8GB+ | 最高 | 保險方案 |
+| **E** | 去背 PNG 素材 + ffmpeg 疊圖 | ❌ | ~0 | **100%** | 保底，永遠可行 |
+
+### 方案 E 補充（保底方案，不要低估它）
+
+小橘做成**透明背景 PNG 素材庫**（數種姿勢 / 表情），AI 只生背景，用 ffmpeg overlay 疊上去。
+
+- **一致性 100%** —— 因為根本是同一張圖，不是「很像」
+- 每個 shot 的邊際成本趨近於零
+- 代價：畫面變成剪紙 / 紙偶動畫風，姿勢受限，需要去背（alpha matting）
+- **這是一種合法的 Shorts 美術風格，不是妥協失敗** —— 很多高播放量頻道就長這樣
+
+A~D 全掛才用，但它保證這個專案有路可走。
+
+### Character-Adapter（研究線索，未納入主線）
+
+論文方法，宣稱可延伸到動物與物件的一致性。但沒有 Draw Things 支援，要跑得自己接 diffusers → 違反 ADR-002/009。**僅列為長期觀察**，見 Q8。
+
+---
+
+## 6. Bake-off 實驗設計 ⬅️ **下一步就是做這個**
+
+### 6.1 為什麼先做實驗，不先寫程式
+
+§5 全部是規格表，**沒有一條在 M2 16GB 上被驗證過**。一集 8 個 shot：
+
+- 3 分鐘/張 → 24 分鐘/集 → **可接受**
+- 15 分鐘/張 → 2 小時/集 → **只能掛整夜，勉強**
+- 40 分鐘/張 → **這條路直接死**
+
+這個數字決定整條線的架構。**在量到它之前寫任何 `imagegen.py` 都是賭博。**
+
+### 6.2 前置條件
+
+1. 確認 Draw Things 版本 ≥ **1.20250930.0**（Qwen-Edit 2509 支援的起始版本）
+2. 下載：Z-Image Turbo（6-bit）、Qwen-Image-Edit 2509（INT4 或 8-bit）、FLUX Kontext dev（4-bit）
+3. 開啟 App → Advanced → 啟用 API Server（HTTP / 7860 / localhost）
+4. 產出**小橘定妝照**一張（正面、中景、中性背景、特徵全可見）—— 這是所有方案的共同輸入
+
+### 6.3 測試材料
+
+固定 5 個場景，全部取自已完成的 `projects/ep002-egypt-30s/script.json`，避免另編素材：
+
+1. 現代客廳（起點）
+2. 金字塔前躺著（遠景 + 小主體 ← 最難）
+3. 被埃及工人抱著（與人互動）
+4. 金盒中（受限構圖）
+5. 臉部特寫（細節驗收用）
+
+### 6.4 量測指標與驗收門檻
+
+| 指標 | 怎麼量 | 門檻 |
+|---|---|---|
+| **右耳白色缺角保留率** | 5 張目視計數 | ≥ 4/5 |
+| **鈴鐺保留率** | 5 張目視計數 | ≥ 4/5 |
+| **整體可辨識為同一隻貓** | 目視 | 5/5 |
+| **秒/張** | 計時 | ≤ 180 秒 |
+| **峰值 RAM / swap** | `/api/system` 既有監控 | swap 增量 < 2GB |
+
+**注意**：`studio/backends.py` 的 `system_stats()` 已經能回報 swap，實驗時直接輪詢記錄，不用另外寫工具。
+
+### 6.5 決策樹
+
+```
+A（Qwen-Edit 2509）過門檻？
+ ├─ 是 → 定案 A。LoRA 與資料集這件事永遠不用碰。
+ └─ 否 ┬ 是「太慢」→ 試 B（FLUX Kontext，更輕）
+       └ 是「一致性不足」→ 直接跳 D
+
+B 過門檻？
+ ├─ 是 → 定案 B
+ └─ 否 → 試 C
+
+C 一致性可接受？
+ ├─ 是 → 定案 C（最快最省，理想結果）
+ └─ 否 → 走 D：用 C 大量產圖 → 人工篩 25~40 張 → 訓 Z-Image LoRA
+          └─ 若地端訓練仍不可行 → 一次性丟 Colab 免費 T4
+             （仍免費；每角色一次，不影響單片邊際成本；見 §1 例外條款）
+
+D 也不行 → 走 E（去背 PNG + ffmpeg 疊圖），保證有片可出
+```
+
+### 6.6 無論走哪條，現在就要鎖死的三件事
+
+即使最後走 D 需要資料集，只要下面三件事現在就定好，**從 ep001 產出的每一張圖都自動是訓練集候選**，不用回頭重跑：
+
+1. **鎖 style preset**：checkpoint / 風格詞 / 負面詞 / sampler / cfg / seed 策略，寫成檔案。
+   *風格一變，先前所有圖都不能混進同一個資料集。*
+2. **鎖出圖規格**：主圖 768x1344，**同時另存一張 512 方形臉部裁切**。
+   *現在加是零成本，事後補要全部重跑。512 裁切是為了萬一要訓練時，細節有足夠像素。*
+3. **鎖資料夾規約**：`characters/orange-cat/dataset/` 收精選圖 + 對應 caption。
+   *出圖時順手挑，不要等到要訓練才回頭翻三集的檔案。*
+
+---
+
+## 7. 目標管線（bake-off 定案後）
+
+```
+idea.txt
+   │
+   ▼  [Ollama Qwen3 8B — 已完成]
+script.json  ── 編劇→監製→改寫→硬檢查→運鏡→結尾變體
+   │
+   │  ◀── unload LLM（keep_alive=0）
+   ▼  [Draw Things — 待建 studio/imagegen.py]
+shots/*.png  ── 768x1344，依 §6.5 定案的方案產出
+   │           另存 shots/face/*.png（512 方形裁切）
+   │
+   │  ◀── unload 圖像模型
+   ▼  [Kokoro v1.1-zh — 待建 studio/tts.py]
+audio/*.wav  ── 依 narration，4.5 字/秒
+   │
+   ▼  [ffmpeg — 待建 studio/render.py]
+out/final.mp4 ── Ken Burns（依 camera 欄位）
+                 + 燒字幕（需 CJK 字型）
+                 + 混音 + BGM
+                 + 1080x1920 / H.264
+```
+
+**待建模組清單**：
+
+| 模組 | 職責 | 關鍵設計 |
+|---|---|---|
+| `studio/imagegen.py` | 呼叫 Draw Things API 批次出圖 | **可續跑**（跑到一半掛掉能接），參數全從 style preset 帶入不依賴 UI |
+| `studio/tts.py` | Kokoro 產旁白 | 長度對齊 `duration_sec` |
+| `studio/render.py` | ffmpeg 合成 | Ken Burns 對應 `camera` 五種值；字幕燒錄需選定 CJK 字型 |
+
+`scriptgen.py:8` 已定義 `CAMERAS = ("push_in", "pull_out", "pan_left", "pan_right", "static")`，`render.py` 直接對應這五種即可。
+
+---
+
+## 8. 未來研究方向（Open Questions）
+
+按優先序。**這是接手時的待辦清單。**
+
+| # | 問題 | 為什麼重要 | 怎麼解 | 狀態 |
+|---|---|---|---|---|
+| **Q0** | Draw Things 版本與已下載模型？ | 決定 §6 能不能開始 | 開 App 看版本號與模型清單 | 🔴 **擋路中** |
+| **Q1** | Qwen-Edit 2509 在 M2 16GB 的秒/張？ | 決定整條線可行性 | §6 bake-off | 🔴 最高優先 |
+| **Q2** | 右耳缺角與鈴鐺守得住嗎？ | 角色 IP 成立與否 | §6.4 驗收 | 🔴 最高優先 |
+| **Q3** | Z-Image ControlNet 何時支援？ | 有了才能精準控姿勢 / 構圖 | 追蹤 drawthings community issue #73 | 🟡 觀察 |
+| **Q4** | Kokoro v1.1-zh 中文品質實際如何？ | 配音爛則整支片廢 | 安裝後用 ep002 旁白試聽 | 🟡 未驗證 |
+| **Q5** | LTX-MLX I2V 在 16GB 的可行性與畫質？ | 決定第二階段要不要上真動態 | benchmark；ADR-006 已言明先 benchmark 再決定 | 🟢 二階段 |
+| **Q6** | Draw Things 能否 headless / 排程？ | 決定能不能無人值守批次產片 | 查 API 能力；或改用 CLI / 社群版 | 🟡 影響自動化 |
+| **Q7** | Z-Image-Edit 釋出了嗎？ | 若釋出，可能同時取代 A 與 C，一次解決速度與一致性 | 追蹤阿里發布 | 🟡 **高報酬觀察項** |
+| **Q8** | Character-Adapter 有無 Metal / Draw Things 路徑？ | 專為動物一致性設計 | 觀察；目前只有論文與 diffusers 實作 | 🟢 長期 |
+| **Q9** | 免費可商用 BGM / 音效來源？ | 上片必需 | 待調查 | 🟡 上片前必須解 |
+| **Q10** | 字幕 CJK 字型選哪個（授權可商用）？ | `render.py` 需要 | 待調查 | 🟡 |
+| **Q11** | 上片 metadata（標題/描述/標籤）要不要也讓 LLM 產？ | 省人力，且 `scriptgen.py` 已有現成基礎設施 | 加一個 prompt 即可 | 🟢 低成本加分 |
+| **Q12** | YouTube inauthentic content 政策後續變化？ | 直接影響營利資格 | 定期追蹤 | 🟡 持續 |
+
+---
+
+## 9. 風險登錄
+
+| 風險 | 影響 | 緩解 |
+|---|---|---|
+| Qwen-Edit 在 16GB 上慢到不可用 | 主線方案死 | 決策樹已備 B→C→D→E 四層退路 |
+| 16GB 撞天花板開始 swap | 速度崩 + SSD 磨損 | ADR-008 序列載入；`/api/system` 監控 swap |
+| 風格中途更換 | 先前所有圖作廢、資料集報廢 | §6.6 第 1 點：**先鎖 style preset** |
+| Draw Things 必須開著 App | 無法無人值守 | Q6；短期接受人工啟動 |
+| 模型設定活在 App 不在 repo | 無法重現 | 參數全寫進 style preset，每次呼叫帶入 |
+| YouTube 政策收緊 | 無法營利 | 固定角色 IP 路線本身就是對沖 |
+| Kokoro 中文品質不如預期 | 配音環節卡住 | Q4 提早驗；Piper 已排除，屆時需另找 |
+
+---
+
+## 10. 參考來源
+
+- [Qwen Image Edit — Draw Things WIKI](https://wiki.drawthings.ai/wiki/Qwen_Image_Edit)
+- [Draw Things 宣布支援 Qwen Image Edit 2509（1.20250930.0）](https://x.com/drawthingsapp/status/1973532852785758618)
+- [Quantify Z Image Turbo efficiency gains — Draw Things](https://releases.drawthings.ai/p/quantify-z-image-turbo-efficiency)
+- [Z-Image Turbo: Alibaba's 6B-Parameter SOTA Model — RunDiffusion](https://www.rundiffusion.com/z-image)
+- [LoRA Training — Draw Things WIKI](https://wiki.drawthings.ai/wiki/LoRA_Training)
+- [LoRa Training Notes — Draw Things WIKI](https://wiki.drawthings.ai/wiki/LoRa_Training_Notes)
+- [Draw Things democratizes local large model fine-tuning](https://engineering.drawthings.ai/p/draw-things-democratizes-local-large-model-fine-tuning-on-iphone-ipad-and-mac-2ceb60b5b462)
+- [Flux Kontext — Draw Things WIKI](https://wiki.drawthings.ai/wiki/Flux_Kontext)
+- [Feature Request: ControlNet support for Z Image — issue #73](https://github.com/drawthingsai/draw-things-community/issues/73)
+- [Character-Adapter（論文）](https://arxiv.org/html/2406.16537v2)
+- [kohya_ss on Apple Silicon — issue #577](https://github.com/bmaltais/kohya_ss/issues/577)

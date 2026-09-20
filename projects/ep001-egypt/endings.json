@@ -1,0 +1,43 @@
+{
+  "endings": [
+    {
+      "label": "A",
+      "why": "真相是小橘的鈴早已被主人遺失，它穿越時其實是為了找回自己",
+      "shot": {
+        "id": 0,
+        "duration_sec": 3,
+        "action": "小橘發現鈴裡有主人的照片和留言",
+        "image_prompt": "a small round-faced orange and white tabby cat, distinct M-shaped stripe on forehead, a small white notch on the tip of the right ear, large amber eyes, wearing a worn dark blue cloth collar with a small brass bell, white-tipped tail, sitting on a windowsill with sunlight streaming in, a small photo inside the bell showing a human hand holding a cat toy, warm lighting, wide shot, vertical composition, cinematic lighting",
+        "narration": "這是…我的鈴。",
+        "subtitle": "這是…我的鈴",
+        "camera": "static"
+      }
+    },
+    {
+      "label": "B",
+      "why": "小橘失去回家的路，成為古埃及的靈魂守護者",
+      "shot": {
+        "id": 0,
+        "duration_sec": 3,
+        "action": "小橘化為石像，守護金字塔直到時間盡頭",
+        "image_prompt": "a small round-faced orange and white tabby cat, distinct M-shaped stripe on forehead, a small white notch on the tip of the right ear, large amber eyes, worn dark blue cloth collar with a small brass bell, white-tipped tail, frozen in stone as a statue inside a pyramid, golden light reflecting off the stone, wide shot, vertical composition, cinematic lighting",
+        "narration": "我…回不去了。",
+        "subtitle": "我…回不去了",
+        "camera": "static"
+      }
+    },
+    {
+      "label": "C",
+      "why": "小橘與主人重逢，但時間已過很久，彼此都已改變",
+      "shot": {
+        "id": 0,
+        "duration_sec": 3,
+        "action": "小橘與主人在窗邊重逢，彼此都已白髮",
+        "image_prompt": "a small round-faced orange and white tabby cat, distinct M-shaped stripe on forehead, a small white notch on the tip of the right ear, large amber eyes, wearing a worn dark blue cloth collar with a small brass bell, white-tipped tail, sitting on a windowsill with sunlight streaming in, a white-haired human holding a cat toy, warm lighting, wide shot, vertical composition, cinematic lighting",
+        "narration": "我…還能回家。",
+        "subtitle": "我…還能回家",
+        "camera": "static"
+      }
+    }
+  ]
+}
