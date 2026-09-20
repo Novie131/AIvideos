@@ -1,0 +1,57 @@
+{
+  "_readme": "出圖參數的單一事實來源。ADR-002 已言明：絕不依賴 Draw Things App 的 UI 狀態，每次呼叫 API 都從這份檔案帶入全部參數。",
+  "_versioning": "檔名帶版號。風格要改就新開 style-v2.json，不要改這份。理由見 pipeline-plan.md §9：風格一變，先前所有圖與整個訓練集作廢；版號留著才分得出某批圖是哪組參數出的。",
+
+  "preset_id": "style-v1",
+  "created": "2026-09-20",
+  "status": "pending_bakeoff",
+  "_status_note": "bake-off（pipeline-plan.md §6）跑完前，model 區塊的值都未定案。標 null 的欄位由 §6.5 決策樹決定。",
+
+  "output": {
+    "_note": "§6.6 第 2 點，已定案。現在加是零成本，事後補要全部重跑。",
+    "main": { "width": 768, "height": 1344, "_upscale_to": "1080x1920（合成階段做，不在出圖階段）" },
+    "face_crop": {
+      "width": 512, "height": 512,
+      "_why": "為了萬一要走方案 D（LoRA 訓練）時細節有足夠像素。每張主圖都必須同時另存一張。"
+    },
+    "format": "png"
+  },
+
+  "model": {
+    "_note": "由 §6.5 決策樹定案，現在填的是 ADR-003 的規格預期值，未在本機驗證。",
+    "backend": "drawthings",
+    "api": "http://127.0.0.1:7860",
+    "checkpoint": null,
+    "_checkpoint_candidates": {
+      "A": "Qwen-Image-Edit 2509 INT4 —— 首選，一致性最高，~11GB [待驗]",
+      "B": "FLUX.1 Kontext dev 4-bit —— 降級選項，~7GB [推定]",
+      "C": "Z-Image Turbo 6-bit —— 最快最省，~4GiB，但一致性會飄 [待驗]"
+    },
+    "steps": 8,
+    "_steps_note": "ADR-003：Z-Image Turbo 為 8 步 [官方規格]。若定案走 A 或 B 必須重設。",
+    "cfg": null,
+    "sampler": null,
+    "clip_skip": null
+  },
+
+  "seed": {
+    "strategy": "base_plus_shot_id",
+    "_why": "seed = base_seed + shot.id。同一集內每個 shot 各自穩定，整集可用同一個 base_seed 重現；要重抽某個 shot 只改它自己的偏移，不動其他 shot。",
+    "base_seed": 20260920,
+    "reroll_offset_step": 10000
+  },
+
+  "prompt": {
+    "_composition": "最終 prompt = character.appearance_en + shot.image_prompt + style_suffix。character.json 的 note 已要求 appearance_en 完整內嵌不可簡寫，scriptgen 產出的 image_prompt 已符合。",
+    "style_suffix": null,
+    "_style_suffix_note": "風格詞待 bake-off 時定。一旦定案就不能再動 —— 這是資料集能不能混用的唯一判準。",
+    "negative": null,
+    "_negative_note": "待定。貓的常見壞掉樣態（多腳、雙尾、耳朵數量錯）應納入。"
+  },
+
+  "character_lock": {
+    "_note": "pipeline-plan.md §3：驗收只盯這兩項，守得住其他都守得住。",
+    "must_preserve": ["右耳尖端白色缺角", "項圈上的黃銅小鈴鐺"],
+    "acceptance_threshold": "5 張測試圖中至少 4 張保住，整體可辨識為同一隻貓需 5/5"
+  }
+}
