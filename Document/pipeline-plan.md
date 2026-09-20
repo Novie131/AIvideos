@@ -1,8 +1,11 @@
 # AI Shorts 地端產線 — 規劃與研究方向
 
-- 版本：**v2**
+- 版本：**v2.1**
 - 更新日期：**2026-09-20**
-- 上一版：v1（2026-09-08，SDXL + IP-Adapter 路線，本版已部分推翻）
+- 上一版：v2（2026-09-20，Z-Image + Qwen-Edit 路線，本版沿用，僅補實測）
+- 再上一版：v1（2026-09-08，SDXL + IP-Adapter 路線，v2 已部分推翻）
+
+**v2.1 改了什麼**：Q0 實測完成（版本過關、模型全未下載），補上 §2 記憶體實況與 §6.2 清場步驟，§6.6 三件事已落成檔案。**沒有推翻任何 v2 的決策。**
 
 ---
 
@@ -73,9 +76,27 @@
 ffmpeg   /opt/homebrew/bin/ffmpeg
 ollama   /opt/homebrew/bin/ollama    （已載 qwen3:8b，5.2GB）
 uv       /opt/homebrew/bin/uv        （Python 3.12，不碰系統 3.9.6）
-Draw Things.app  /Applications/      （版本未確認 — 見 Q0）
+Draw Things.app  /Applications/      1.20260716.0  ← Q0 已解，見下
 macOS    Darwin 25.6.0
+git      已初始化（2026-09-20，main 分支，僅本機無遠端）
 ```
+
+**Q0 實測結果（2026-09-20）** `[已驗證]`：
+
+| 項目 | 結果 |
+|---|---|
+| Draw Things 版本 | **1.20260716.0**，遠高於 Qwen-Edit 2509 所需的 1.20250930.0 → **版本不是障礙** |
+| 已下載模型 | **一個都沒有**。容器 `~/Library/Containers/com.liuliu.draw-things/` 總共僅 912KB，`Models/` 與 `Downloads/` 全空，全碟搜尋無 `.ckpt` / `.safetensors` |
+| API Server | 未開（:7860 無回應） |
+| 磁碟餘裕 | 133GB，下載約 22GB 的三個模型沒問題 |
+
+**這改寫了 §6.2 的性質**：原本把「下載模型」寫成一行前置條件，實際上它是 bake-off 的**主要工作量**。
+
+**記憶體實況** `[已驗證]`：`/api/system` 回報總 17.2GB、**可用僅 4.3GB、swap 已用 1.73GB**。
+被 VS Code + 多個 claude 進程 + Discord + 一個 Virtualization VM 累積吃掉 12.9GB（非單一巨獸）。
+**照這個狀態，Qwen-Edit 的 11GB 連載都載不進去。** 見 §6.2 清場步驟與 ADR-008 補註。
+
+**腳本產出欄位完整性** `[已驗證]`：ep002 九個 shot 的 `id/duration_sec/action/image_prompt/narration/subtitle/camera` 全數無缺，每個 image_prompt 385~413 字元且完整內嵌 `appearance_en`。**`imagegen.py` 一寫好就能直接餵，不用回頭補腳本。**（實際總長 27 秒、9 shots，非標稱 30 秒，不影響。）
 
 **一句話總結進度**：腳本層做完且做得紮實，**影像層一行都沒有**。手上只有 JSON，離 mp4 差三個模組。
 
@@ -208,6 +229,15 @@ Piper 中文品質差，已排除。Kokoro **尚未安裝、尚未試聽**。見
 
 **結論**：`Qwen-Edit(11) + 基線(4) = 15GB`，已經貼著天花板。**任何兩個重模型同時在記憶體裡都會 swap。** 序列載入不是最佳化，是生存條件。
 
+**2026-09-20 實測補註** `[已驗證]`：上表「macOS 基線 ~3~4GB」是**乾淨開機**的數字，不是日常工作狀態。實際量到日常狀態下被佔用 12.9GB、可用僅 4.3GB、swap 已 1.73GB。
+
+這不是推翻預算表，是補上它漏掉的前提：**那 4GB 基線只有在清場後才成立**。所以「序列載入」這條生存條件要擴充成兩條：
+
+1. 一次只載一個重模型（原有）
+2. **跑重模型前必須清場**——關掉 VS Code / Discord / VM 等常駐程式（新增）
+
+§6.4 量 swap 增量時，**必須先記錄清場後的乾淨基線**，否則量到的數字混入了其他程式的佔用，無法判讀。
+
 ### ADR-009 — 已排除項目（不要再回頭研究）
 
 | 排除項 | 理由 |
@@ -263,10 +293,13 @@ A~D 全掛才用，但它保證這個專案有路可走。
 
 ### 6.2 前置條件
 
-1. 確認 Draw Things 版本 ≥ **1.20250930.0**（Qwen-Edit 2509 支援的起始版本）
-2. 下載：Z-Image Turbo（6-bit）、Qwen-Image-Edit 2509（INT4 或 8-bit）、FLUX Kontext dev（4-bit）
+1. ~~確認 Draw Things 版本 ≥ **1.20250930.0**~~ ✅ **已完成**：實測 1.20260716.0，過關。
+2. **下載模型** ← **目前的主要工作量，約 22GB**
+   實測**一個都沒下載**。需要：Z-Image Turbo（6-bit ~4GB）、Qwen-Image-Edit 2509（INT4 ~11GB）、FLUX Kontext dev（4-bit ~7GB）。磁碟剩 133GB，空間無虞。
 3. 開啟 App → Advanced → 啟用 API Server（HTTP / 7860 / localhost）
-4. 產出**小橘定妝照**一張（正面、中景、中性背景、特徵全可見）—— 這是所有方案的共同輸入
+4. **清場記憶體** ← **新增，不可略過**
+   關掉 VS Code / Discord / Virtualization VM 等常駐程式，用 `/api/system` 確認可用記憶體回到 12GB 以上，並**記下這個乾淨基線**供 §6.4 的 swap 增量對照。不清場則 Qwen-Edit 的 11GB 載不進去。
+5. 產出**小橘定妝照**一張（正面、中景、中性背景、特徵全可見）—— 這是所有方案的共同輸入，存放規約見 `characters/orange-cat/ref/README.md`
 
 ### 6.3 測試材料
 
@@ -311,7 +344,7 @@ C 一致性可接受？
 D 也不行 → 走 E（去背 PNG + ffmpeg 疊圖），保證有片可出
 ```
 
-### 6.6 無論走哪條，現在就要鎖死的三件事
+### 6.6 無論走哪條，現在就要鎖死的三件事 ✅ **已完成（2026-09-20）**
 
 即使最後走 D 需要資料集，只要下面三件事現在就定好，**從 ep001 產出的每一張圖都自動是訓練集候選**，不用回頭重跑：
 
@@ -321,6 +354,17 @@ D 也不行 → 走 E（去背 PNG + ffmpeg 疊圖），保證有片可出
    *現在加是零成本，事後補要全部重跑。512 裁切是為了萬一要訓練時，細節有足夠像素。*
 3. **鎖資料夾規約**：`characters/orange-cat/dataset/` 收精選圖 + 對應 caption。
    *出圖時順手挑，不要等到要訓練才回頭翻三集的檔案。*
+
+**落成的檔案**：
+
+| 項目 | 檔案 | 內容 |
+|---|---|---|
+| 1. style preset | `presets/style-v1.json` | 檔名帶版號（改風格開 v2，不改舊檔，讓每批圖都追溯得到參數）。已定案欄位：768x1344、512 臉部裁切、`seed = base_seed + shot.id`。未定案欄位（checkpoint / cfg / sampler / 風格詞 / 負面詞）標 `null`，待 §6.5 填入 |
+| 2. 出圖規格 | 同上 `output` 區塊 | — |
+| 3. 資料集規約 | `characters/orange-cat/dataset/README.md` | 圖文同名成對、觸發詞 `xj_cat`、**固定外觀特徵不寫進 caption**（寫了等於告訴模型這些特徵可變，訓練就白做）、只收右耳缺角與鈴鐺皆清晰的圖、manifest 記錄來源 preset |
+| 附帶 | `characters/orange-cat/ref/README.md` | §6.2 定妝照的規格與存放規約 |
+
+`.gitignore` 已驗證：產出的影音檔（`shots/` `audio/` `out/`）擋在版控外，但 `dataset/` 與 `ref/` 的圖（人工精選、不可重生）確實進得去。
 
 ---
 
@@ -366,7 +410,7 @@ out/final.mp4 ── Ken Burns（依 camera 欄位）
 
 | # | 問題 | 為什麼重要 | 怎麼解 | 狀態 |
 |---|---|---|---|---|
-| **Q0** | Draw Things 版本與已下載模型？ | 決定 §6 能不能開始 | 開 App 看版本號與模型清單 | 🔴 **擋路中** |
+| **Q0** | ~~Draw Things 版本與已下載模型？~~ | 決定 §6 能不能開始 | 已實測，見 §2 | ✅ **已解**：版本 1.20260716.0 過關；**但模型全未下載**，需先補約 22GB |
 | **Q1** | Qwen-Edit 2509 在 M2 16GB 的秒/張？ | 決定整條線可行性 | §6 bake-off | 🔴 最高優先 |
 | **Q2** | 右耳缺角與鈴鐺守得住嗎？ | 角色 IP 成立與否 | §6.4 驗收 | 🔴 最高優先 |
 | **Q3** | Z-Image ControlNet 何時支援？ | 有了才能精準控姿勢 / 構圖 | 追蹤 drawthings community issue #73 | 🟡 觀察 |
