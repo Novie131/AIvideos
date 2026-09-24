@@ -22,6 +22,28 @@ SEC_PER_SHOT = 1.8
 # 節奏就得靠「切」來給 —— 同樣 15 秒，從 5 個鏡頭變成 8~9 個，
 # 這不花任何運算，而且熱門 Shorts 本來就是 1~2 秒一切。
 
+# 會把插畫風壓成寫實照片的攝影術語。風格一律由 style preset 附加，編劇不要碰。
+PHOTO_JARGON = ("slow motion", "high contrast lighting", "photorealistic", "photo realistic",
+                "dslr", "bokeh", "8k", "4k uhd", "octane render", "unreal engine",
+                "ray tracing", "raytracing", "film grain", "35mm", "100mm")
+
+_FIXED_TAIL = ("vertical composition", "cinematic lighting")
+
+
+def _prompt_body(ip: str) -> str:
+    """去掉角色外觀與固定字尾，只留下這一格真正獨有的內容。
+
+    用途：判斷兩格是否雷同、以及有沒有寫出場景。外觀描述每格都一樣，
+    固定字尾也每格都一樣，不扣掉的話任何兩格看起來都不像重複。
+    """
+    body = ip.lower()
+    if "white-tipped tail," in body:
+        body = body.split("white-tipped tail,", 1)[1]
+    for t in _FIXED_TAIL:
+        body = body.replace(t, " ")
+    return " ".join(body.replace(",", " ").split())
+
+
 # image_prompt 必須帶的動態線索。I2V 只能延續「已經在發生的動作」，
 # 不會讓一隻站著的貓開始跑 —— 所以動作必須在出圖階段就凍結進畫面裡。
 MOTION_CUES = (
@@ -115,22 +137,37 @@ image_prompt 用英文寫給圖片模型。三件事缺一不可：
 
   ❌ standing in a pyramid, looking around
      ← 站著。做成影片只會是一隻站著微微呼吸的貓，等於靜止畫面
-  ✅ mid-stride running deeper into the pyramid, one front paw lifted off the ground,
-     ears pinned back, tail streaming behind
-     ← 動作已經凍結在畫面裡，影片模型只要把它延續下去
+  ✅ <動作姿勢>, <身體細節>, <這一格發生在哪裡>, <光線>
+     ← 動作凍結在畫面裡，而且說清楚場景
 
-每個 image_prompt 都必須包含至少一個這類動態線索：
+動態線索可以用這些，但**要自己搭配當下的場景寫**，不要只寫動作：
 mid-stride / mid-leap / mid-air / paw lifted / turning / about to leap /
 crouching to pounce / falling / landing / reaching / recoiling / skidding to a stop
+
+# 三條會被程式擋下來的規則
+
+**(1) 每一格都必須寫出這一格發生在哪裡。**
+只寫動作不寫場景，圖會生出模糊的空白背景，整支片就散了。
+每個 image_prompt 都要有具體的環境：牆上有什麼、地面是什麼、背景有什麼物件。
+
+**(2) 八格的 image_prompt 不能有任何兩格相同或高度雷同。**
+同樣的提示詞會生出同樣的圖。每一格的動作與場景都要不一樣。
+
+**(3) 不要加攝影術語。**
+禁用：slow motion, high contrast lighting, photorealistic, dslr, bokeh, 8k, octane render。
+這些會把插畫風壓成寫實照片，破壞整集的視覺一致性。風格由系統統一附加，你不要碰。
 
 # 相鄰鏡頭要有動作連續性
 
 把一個大動作拆成連續的兩三格，讓觀眾的腦補把它們連成流暢的動作。
 這比任何特效都有效，而且完全免費。
 
-  shot 3: crouching low, hind legs coiled, about to leap
-  shot 4: mid-air, body fully stretched, paws reaching forward
-  shot 5: landing hard, front paws skidding, dust kicked up
+結構像這樣（**這是結構示範，下面的英文字句一個都不要照抄**，
+要依照你這一集的實際場景與動作重寫）：
+
+  第 N 格    蓄力 —— 壓低身體、後腿收緊，＋這一刻在哪裡
+  第 N+1 格  騰空 —— 身體完全伸展、四肢朝向某處，＋背景掠過什麼
+  第 N+2 格  落地 —— 前腳著地打滑、揚起什麼，＋腳下是什麼材質
 
 # 其他
 
@@ -305,10 +342,32 @@ def check(script: dict) -> tuple[int, list[str]]:
         if d > 2.5:
             issues.append(f"Shot {sid} 長 {d} 秒，超過 2.5 秒。Shorts 節奏要快，且單鏡頭再長也產生不了更多動作，須拆成兩格")
         ip = (s.get("image_prompt") or "").lower()
+        for w in PHOTO_JARGON:
+            if w in ip:
+                issues.append(f"Shot {sid} 的 image_prompt 含攝影術語「{w}」，"
+                              f"會把插畫風壓成寫實照片，須刪掉（風格由 style preset 統一附加）")
+                break
         if ip and not any(c in ip for c in MOTION_CUES):
             issues.append(f"Shot {sid} 的 image_prompt 沒有任何動態姿勢線索，"
                           f"畫面會是靜止的擺拍。須改寫成動作進行到一半的瞬間"
                           f"（例如 mid-stride / paw lifted / turning / about to leap）")
+
+    # image_prompt 重複 / 場景太單薄 —— 2026-09-25 實測踩到：
+    # LLM 會把提示詞裡的英文範例逐字照抄，導致多格相同且完全沒有場景描述。
+    from collections import Counter
+    seen: dict[str, int] = {}
+    for s_ in shots:
+        key = _prompt_body(s_.get("image_prompt") or "")
+        if not key:
+            continue
+        if key in seen:
+            issues.append(f"Shot {s_.get('id')} 的 image_prompt 與 shot {seen[key]} 完全相同，"
+                          f"會生出一樣的圖，須改寫成不同的動作與場景")
+        else:
+            seen[key] = s_.get("id")
+        if len(key.split()) < 8:
+            issues.append(f"Shot {s_.get('id')} 的 image_prompt 只有 {len(key.split())} 個字（扣掉外觀與固定字尾），"
+                          f"太單薄，**沒有寫出這一格發生在哪裡**，背景會生成模糊空白")
 
     # 以下兩項只在 shot 數多時才會塌陷，5 格看不出來
     if len(shots) >= 6:
