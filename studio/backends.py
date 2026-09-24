@@ -1,10 +1,15 @@
 """本機後端：Ollama / Draw Things / ffmpeg / 系統資源。"""
 from __future__ import annotations
-import asyncio, json, shutil
+import asyncio, json, os, shutil
 import httpx, psutil
 
-OLLAMA = "http://127.0.0.1:11434"
-DRAWTHINGS = "http://127.0.0.1:7860"
+# 後端位址不寫死 —— ADR-002：Draw Things 關在 imagegen.py 後面，換機器只換設定。
+# 指向另一台機器時設環境變數即可，例如：
+#   AIV_DRAWTHINGS_URL=http://192.168.1.50:7860 ./run.sh
+# 注意：Draw Things 只跑 Apple 平台。若外部機器是 Linux + NVIDIA，那是換後端
+# （要另寫一個 adapter），不是換網址就好。
+OLLAMA = os.getenv("AIV_OLLAMA_URL", "http://127.0.0.1:11434")
+DRAWTHINGS = os.getenv("AIV_DRAWTHINGS_URL", "http://127.0.0.1:7860")
 
 
 async def ollama_models() -> list[dict]:

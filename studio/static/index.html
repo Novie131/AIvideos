@@ -71,6 +71,18 @@
         </div>
       </div>
 
+      <!-- 產線：腳本之後的三個階段。序列執行，狀態看右邊佇列 -->
+      <div class="pipe" id="pipe">
+        <button data-run="images" title="Draw Things 出圖，約 162 秒/張">① 出圖 <i></i></button>
+        <button data-run="tts"    title="macOS say 產旁白，數秒">② 配音 <i></i></button>
+        <button data-run="render" title="ffmpeg 合成 mp4，約 20 秒">③ 合成 <i></i></button>
+        <select id="voice" title="旁白語音"></select>
+        <label class="chk" title="已存在的檔案也重做"><input type="checkbox" id="force"> 重做</label>
+        <div class="grow"></div>
+        <a id="dl" class="mini" hidden download>下載 mp4</a>
+      </div>
+
+      <video id="player" controls playsinline hidden></video>
       <div class="issues" id="issues" hidden></div>
       <div id="endings" class="endings" hidden></div>
       <div id="shots" class="shots"></div>
@@ -83,6 +95,11 @@
   </section>
 
   <aside class="right">
+    <div class="panel" id="charPanel" hidden>
+      <h3>角色設定</h3>
+      <div id="charCard"></div>
+    </div>
+
     <div class="panel">
       <h3>佇列</h3>
       <div class="hint mb">序列執行，一次只跑一個任務（16GB 限制）</div>

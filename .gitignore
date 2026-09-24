@@ -11,6 +11,7 @@ __pycache__/
 projects/*/shots/
 projects/*/audio/
 projects/*/out/
+projects/*/.work/
 *.png
 *.jpg
 *.jpeg

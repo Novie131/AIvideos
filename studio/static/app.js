@@ -39,6 +39,9 @@ async function loadSelects() {
   const cs = await api('/api/characters', {m: 'GET'}).catch(() => []);
   $('#character').innerHTML = cs.map(c =>
     `<option value="${c.id}">${c.name}</option>`).join('') || '<option value="">（無角色）</option>';
+  const vs = await api('/api/voices', {m: 'GET'}).catch(() => []);
+  $('#voice').innerHTML = vs.map(v => `<option>${v}</option>`).join('')
+    || '<option value="">（無中文語音）</option>';
 }
 
 /* ---------- 專案 ---------- */
@@ -46,7 +49,8 @@ async function loadProjects() {
   const ps = await api('/api/projects', {m: 'GET'}).catch(() => []);
   $('#projects').innerHTML = ps.map(p => `<div class="item ${p.slug === curSlug ? 'on' : ''}" data-slug="${p.slug}">
     <div class="t">${p.title}</div>
-    <div class="m">${p.slug} · ${p.shots} shots · ${p.duration}s · 圖 ${p.images}</div></div>`).join('')
+    <div class="m">${p.slug} · ${p.shots} shots · ${p.duration}s
+      · ${p.images}/${p.shots} 圖 · ${p.audios} 音 ${p.video ? '· 🎬' : ''}</div></div>`).join('')
     || '<div class="hint">還沒有專案</div>';
   $('#projects').querySelectorAll('.item').forEach(el =>
     el.onclick = () => openProject(el.dataset.slug));
@@ -60,8 +64,59 @@ async function openProject(slug) {
   $('#critique').textContent = cur.critique || '（無）';
   renderEndings(cur.endings);
   renderShots();
+  renderMedia();
+  renderChar();
   loadProjects();
 }
+
+/* ---------- 產出物：影片與產線狀態 ---------- */
+function renderMedia() {
+  const m = cur.media || {shots: {}, audio: {}}, n = cur.script.shots.length;
+  const v = $('#player');
+  v.hidden = !m.video;
+  if (m.video && v.dataset.src !== m.video) { v.src = m.video; v.dataset.src = m.video; }
+  const dl = $('#dl');
+  dl.hidden = !m.video; if (m.video) dl.href = m.video;
+
+  // 每個階段的圓點：全齊=綠、部分=黃、沒有=灰
+  const mark = (sel, have) => {
+    const b = $(`[data-run="${sel}"]`);
+    b.classList.toggle('done', have >= n && n > 0);
+    b.classList.toggle('partial', have > 0 && have < n);
+  };
+  mark('images', Object.keys(m.shots || {}).length);
+  mark('tts', Object.keys(m.audio || {}).length);
+  const rb = $('[data-run="render"]');
+  rb.classList.toggle('done', !!m.video); rb.classList.remove('partial');
+}
+
+/* ---------- 角色卡 ---------- */
+async function renderChar() {
+  const cs = await api('/api/characters', {m: 'GET'}).catch(() => []);
+  const name = cur.script.character || '';
+  const c = cs.find(x => x.name === name || curSlug.includes(x.id)) || cs[0];
+  $('#charPanel').hidden = !c;
+  if (!c) return;
+  const lock = (cur.media?.manifest) || null;
+  $('#charCard').innerHTML = `<div class="nm">${c.name}</div>
+    <div class="en">${c.name_en || ''}${c.species ? ' · ' + c.species : ''}</div>
+    <div class="k">外觀</div><p>${c.appearance_zh || ''}</p>
+    ${c.personality ? `<div class="k">性格</div><p>${c.personality}</p>` : ''}
+    ${lock ? `<div class="k">出圖參數</div><p>${lock.preset} · ${lock.sampler}
+      · ${lock.steps} 步 · cfg ${lock.cfg} · seed ${lock.base_seed}+id</p>` : ''}`;
+}
+
+/* ---------- 產線按鈕 ---------- */
+document.querySelectorAll('[data-run]').forEach(b => b.onclick = async () => {
+  if (!curSlug) return;
+  const kind = b.dataset.run;
+  const body = {slug: curSlug, force: $('#force').checked};
+  if (kind === 'tts' && $('#voice').value) body.voice = $('#voice').value;
+  b.disabled = true;
+  try { await api('/api/' + kind, {b: body}); }
+  catch (e) { notice('啟動失敗：' + e.message); }
+  finally { b.disabled = false; }
+});
 
 function renderShots() {
   const s = cur.script, cons = Object.fromEntries((cur.consistency || []).map(c => [c.id, c]));
@@ -70,7 +125,10 @@ function renderShots() {
   $('#shots').innerHTML = s.shots.map((sh, i) => {
     const cap = Math.floor((sh.duration_sec || 0) * CPS), n = (sh.narration || '').length;
     const miss = cons[sh.id] && !cons[sh.id].ok ? cons[sh.id].missing : [];
+    const src = (cur.media && cur.media.shots || {})[sh.id];
     return `<div class="shot" data-i="${i}">
+      ${src ? `<img class="thumb" src="${src}" alt="shot ${sh.id}">`
+            : `<div class="thumb ph">未出圖</div>`}
       <div class="shot-head">
         <div class="shot-no">${sh.id}</div>
         <input type="number" data-f="duration_sec" value="${sh.duration_sec}" min="1" max="10" step="1">
@@ -105,6 +163,10 @@ function renderShots() {
   renderIssues(cur.issues);
 }
 const esc = t => (t || '').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+function notice(text) {
+  const el = $('#notice'); el.hidden = false; el.textContent = text;
+  clearTimeout(notice._t); notice._t = setTimeout(() => el.hidden = true, 6000);
+}
 
 function renderIssues(is) {
   const el = $('#issues');
@@ -193,7 +255,9 @@ function connect() {
         loadProjects();
         const s = d.job.result?.slug || curSlug;
         if (d.job.kind === 'script' && s) openProject(s);
-        if (d.job.kind === 'endings' && curSlug) openProject(curSlug);
+        // 出圖/配音/合成跑完，重開專案讓縮圖與播放器更新
+        if (['endings', 'images', 'tts', 'render'].includes(d.job.kind) && curSlug)
+          openProject(curSlug);
       }
     }
   };

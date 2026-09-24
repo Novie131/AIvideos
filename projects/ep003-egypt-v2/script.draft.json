@@ -1,0 +1,79 @@
+{
+  "title": "橘貓穿越古埃及",
+  "hook": "小橘被金色光暈包圍",
+  "character": "小橘",
+  "shots": [
+    {
+      "id": 1,
+      "duration_sec": 2,
+      "action": "小橘被金色光暈包圍",
+      "image_prompt": "a small round-faced orange and white tabby cat, distinct M-shaped stripe on forehead, a small white notch on the tip of the right ear, large amber eyes, wearing a worn dark blue cloth collar with a small brass bell, white-tipped tail, mid-stride running deeper into the pyramid, one front paw lifted off the ground, ears pinned back, tail streaming behind, vertical composition, cinematic lighting",
+      "narration": "這裡…不是我家。",
+      "subtitle": "這裡…不是我家",
+      "camera": "push_in"
+    },
+    {
+      "id": 2,
+      "duration_sec": 2,
+      "action": "小橘驚訝地停下來",
+      "image_prompt": "a small round-faced orange and white tabby cat, distinct M-shaped stripe on forehead, a small white notch on the tip of the right ear, large amber eyes, wearing a worn dark blue cloth collar with a small brass bell, white-tipped tail, crouching low, hind legs coiled, about to leap, vertical composition, cinematic lighting",
+      "narration": "我…怎麼會來這裡？",
+      "subtitle": "我…怎麼會來這裡？",
+      "camera": "pull_out"
+    },
+    {
+      "id": 3,
+      "duration_sec": 2,
+      "action": "小橘被法老的雕像盯上",
+      "image_prompt": "a small round-faced orange and white tabby cat, distinct M-shaped stripe on forehead, a small white notch on the tip of the right ear, large amber eyes, wearing a worn dark blue cloth collar with a small brass bell, white-tipped tail, mid-air, body fully stretched, paws reaching forward, vertical composition, cinematic lighting",
+      "narration": "他…在看我。",
+      "subtitle": "他…在看我。",
+      "camera": "pan_left"
+    },
+    {
+      "id": 4,
+      "duration_sec": 2,
+      "action": "小橘被法老的雕像追捕",
+      "image_prompt": "a small round-faced orange and white tabby cat, distinct M-shaped stripe on forehead, a small white notch on the tip of the right ear, large amber eyes, wearing a worn dark blue cloth collar with a small brass bell, white-tipped tail, landing hard, front paws skidding, dust kicked up, vertical composition, cinematic lighting",
+      "narration": "我要逃走！",
+      "subtitle": "我要逃走！",
+      "camera": "pan_right"
+    },
+    {
+      "id": 5,
+      "duration_sec": 2,
+      "action": "小橘跳上金字塔頂端",
+      "image_prompt": "a small round-faced orange and white tabby cat, distinct M-shaped stripe on forehead, a small white notch on the tip of the right ear, large amber eyes, wearing a worn dark blue cloth collar with a small brass bell, white-tipped tail, mid-stride running across the pyramid top, one front paw lifted off the ground, tail streaming behind, vertical composition, cinematic lighting",
+      "narration": "我…快要逃出去了。",
+      "subtitle": "我…快要逃出去了。",
+      "camera": "pan_left"
+    },
+    {
+      "id": 6,
+      "duration_sec": 2,
+      "action": "小橘被法老的雕像追到金字塔頂",
+      "image_prompt": "a small round-faced orange and white tabby cat, distinct M-shaped stripe on forehead, a small white notch on the tip of the right ear, large amber eyes, wearing a worn dark blue cloth collar with a small brass bell, white-tipped tail, crouching low, hind legs coiled, about to leap, vertical composition, cinematic lighting",
+      "narration": "我不會輸給他。",
+      "subtitle": "我不會輸給他。",
+      "camera": "pan_right"
+    },
+    {
+      "id": 7,
+      "duration_sec": 2,
+      "action": "小橘跳入金色光暈",
+      "image_prompt": "a small round-faced orange and white tabby cat, distinct M-shaped stripe on forehead, a small white notch on the tip of the right ear, large amber eyes, wearing a worn dark blue cloth collar with a small brass bell, white-tipped tail, mid-air, body fully stretched, paws reaching forward, vertical composition, cinematic lighting",
+      "narration": "我…回家了。",
+      "subtitle": "我…回家了。",
+      "camera": "push_in"
+    },
+    {
+      "id": 8,
+      "duration_sec": 2,
+      "action": "小橘穿越回到現代",
+      "image_prompt": "a small round-faced orange and white tabby cat, distinct M-shaped stripe on forehead, a small white notch on the tip of the right ear, large amber eyes, wearing a worn dark blue cloth collar with a small brass bell, white-tipped tail, mid-stride running deeper into the room, one front paw lifted off the ground, tail streaming behind, vertical composition, cinematic lighting",
+      "narration": "我…真的回來了。",
+      "subtitle": "我…真的回來了。",
+      "camera": "static"
+    }
+  ]
+}

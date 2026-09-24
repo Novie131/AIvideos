@@ -4,8 +4,11 @@
 
   "preset_id": "style-v1",
   "created": "2026-09-20",
-  "status": "pending_bakeoff",
-  "_status_note": "bake-off（pipeline-plan.md §6）跑完前，model 區塊的值都未定案。標 null 的欄位由 §6.5 決策樹決定。",
+  "locked_at": "2026-09-22",
+  "status": "provisional_zimage",
+  "_measured": "[已驗證] 2026-09-24 實跑 ep001 五張：冷啟動 312.8s，穩態 162.6 / 162.1 / 161.7 / 161.7s。對照 §6.1 門檻（3 分鐘/張可接受）過關。角色一致性目視五張為同一隻貓；**右耳白色缺角五張全失敗**（減法特徵，擴散模型畫不出來），鈴鐺與項圈五張全中。",
+  "_status_note": "ADR-010 把 bake-off 延後了，所以原本的 pending_bakeoff 變成在等一件不會發生的事。改為用方案 C（Z-Image Turbo）的值填死，讓 imagegen.py 有東西可讀。bake-off 日後真的跑出不同結論，開 style-v2.json，不改這份。",
+  "_confidence": "2026-09-24：model 區塊的 steps / cfg / sampler / shift 全部改為 [已驗證] —— 直接抄自 Draw Things 載入 Z Image Turbo 1.0 (8-bit S) 後自己帶出的預設值，不是推算。prompt 區塊（style_suffix / negative）仍是 [推定]，要出圖後用眼睛驗。",
 
   "output": {
     "_note": "§6.6 第 2 點，已定案。現在加是零成本，事後補要全部重跑。",
@@ -14,24 +17,50 @@
       "width": 512, "height": 512,
       "_why": "為了萬一要走方案 D（LoRA 訓練）時細節有足夠像素。每張主圖都必須同時另存一張。"
     },
-    "format": "png"
+    "format": "png",
+    "dir": "shots",
+    "_dir_note": "相對於 projects/<slug>/。與 .gitignore 和 pipeline-plan.md §7 一致。臉部裁切放 shots/face/。"
   },
 
   "model": {
-    "_note": "由 §6.5 決策樹定案，現在填的是 ADR-003 的規格預期值，未在本機驗證。",
+    "_note": "方案 C（Z-Image Turbo）。方案 A（Qwen-Image-Edit）/ B（FLUX Kontext）的模型依 ADR-010 不下載，留到 bake-off。",
     "backend": "drawthings",
     "api": "http://127.0.0.1:7860",
-    "checkpoint": null,
-    "_checkpoint_candidates": {
-      "A": "Qwen-Image-Edit 2509 INT4 —— 首選，一致性最高，~11GB [待驗]",
-      "B": "FLUX.1 Kontext dev 4-bit —— 降級選項，~7GB [推定]",
-      "C": "Z-Image Turbo 6-bit —— 最快最省，~4GiB，但一致性會飄 [待驗]"
+    "_api_note": "可被環境變數 AIV_DRAWTHINGS_URL 覆蓋（見 studio/backends.py）。指向外部機器時改那個，不改這裡。",
+
+    "checkpoint": "z_image_turbo_1.0_i8x.ckpt",
+    "_checkpoint_note": "[已驗證] 檔名確認自 ~/Library/Containers/com.liuliu.draw-things/Data/Documents/Models/。App 介面顯示為「Z Image Turbo 1.0 (8-bit S)」。**已由 API 確認**：GET /sdapi/v1/options 回報 model = z_image_turbo_1.0_i8x.ckpt，與此完全一致。（Draw Things 沒有實作 /sdapi/v1/sd-models 與 /samplers，只有 /options 與 /txt2img。）",
+    "_quantization": "8-bit（不是原規劃的 6-bit）。理由：使用者在意畫質，8-bit 幾乎無損，磁碟與記憶體都撐得住。",
+    "_actual_footprint_gb": {
+      "_note": "[已驗證] 實際下載了三個檔，共 10.2GB —— ADR-008 的記憶體預算表只算了主模型，漏掉文字編碼器。",
+      "z_image_turbo_1.0_i8x.ckpt": 5.8,
+      "qwen_3_vl_4b_instruct_q8p.ckpt": 4.2,
+      "flux_1_vae_f16.ckpt": 0.16
     },
+    "_checkpoint_rejected": {
+      "A": "Qwen-Image-Edit 2509 INT4 —— 一致性最高但 ~11GB，ADR-010 延後",
+      "B": "FLUX.1 Kontext dev 4-bit —— ~7GB，A 太慢時的降級選項，ADR-010 延後"
+    },
+
     "steps": 8,
-    "_steps_note": "ADR-003：Z-Image Turbo 為 8 步 [官方規格]。若定案走 A 或 B 必須重設。",
-    "cfg": null,
-    "sampler": null,
-    "clip_skip": null
+    "_steps_note": "[已驗證] App 預設值即為 8，模型說明也寫明 'with 8 sampling steps recommended'。",
+
+    "cfg": 1.0,
+    "cfg_zero_star": false,
+    "_cfg_zero_note": "[已驗證] 改自 GET /sdapi/v1/options 的實際值。**我先前看 App 截圖判讀成「啟用」，錯了。** API 欄位名是 cfg_zero_star（不是 cfg_zero），值為 false。UI 開關的判讀不可信，一律以 API 為準。",
+    "_cfg_note": "[已驗證] App 預設就是 1.0。Turbo 是蒸餾模型，guidance 已經烘進權重裡，cfg 應為 1.0。**重要副作用：cfg = 1.0 等於沒有 classifier-free guidance，negative prompt 完全不會生效。** 下面的 negative 是為了日後若改用非蒸餾模型（或把 cfg 調高）而預先寫好的，現在是惰性的。若第一次出圖發現貓的解剖結構常壞掉，先試 cfg 1.5~2.0 讓 negative 活過來，再看要不要加步數。",
+
+    "sampler": "UniPC Trailing",
+    "_sampler_note": "[已驗證] **原本推定 'Euler A Trailing'，錯了。** App 載入此模型後自帶的取樣器是 UniPC Trailing。模型說明只保證 'trailing samplers yield the best results'，沒指定哪一個；App 的選擇是 UniPC。以 App 為準。",
+
+    "shift": 3.0,
+    "resolution_dependent_shift": false,
+    "_shift_note": "[已驗證] 取自 GET /sdapi/v1/options：shift = 3.0、resolution_dependent_shift = **false**（截圖判讀成啟用是錯的）。flow-matching 模型（FLUX / SD3 家族）靠 shift 調整不同解析度下的結構品質。出圖是 768x1344 的直幅，這個值不要亂動。",
+
+    "clip_skip": 1,
+    "_clip_skip_note": "[推定] clip_skip 是 SD1.5 / SDXL 時代的東西，Z-Image 用 Qwen3-VL 4B 當文字編碼器，不適用。填 1 等同不跳層。",
+    "batch_size": 1,
+    "_batch_note": "[已驗證] App 預設 1。16GB 上不要調高 —— 批次會倍增峰值記憶體。"
   },
 
   "seed": {
@@ -43,15 +72,18 @@
 
   "prompt": {
     "_composition": "最終 prompt = character.appearance_en + shot.image_prompt + style_suffix。character.json 的 note 已要求 appearance_en 完整內嵌不可簡寫，scriptgen 產出的 image_prompt 已符合。",
-    "style_suffix": null,
-    "_style_suffix_note": "風格詞待 bake-off 時定。一旦定案就不能再動 —— 這是資料集能不能混用的唯一判準。",
-    "negative": null,
-    "_negative_note": "待定。貓的常見壞掉樣態（多腳、雙尾、耳朵數量錯）應納入。"
+
+    "style_suffix": "children's storybook illustration, painterly brushwork, warm cinematic color grading, soft rim lighting, detailed fur texture, strong readable silhouette, clean uncluttered background",
+    "_style_suffix_note": "[推定] 一旦定案就不能再動 —— 這是資料集能不能混用的唯一判準。三個選擇的理由：(1)『storybook illustration / painterly』避開寫實貓，寫實風的貓一旦五官飄掉會立刻進恐怖谷，插畫風的容錯高很多；(2)『strong readable silhouette / clean background』是為了 Shorts 的觀看情境 —— 手機小畫面、每個鏡頭 3 秒，主體不清楚就等於沒畫；(3) 不重複 image_prompt 已有的鏡位詞（wide-angle / vertical composition / cinematic lighting），避免同義詞互相稀釋。",
+
+    "negative": "extra legs, five legs, two tails, three ears, deformed paws, extra limbs, mutated anatomy, fused fingers, human face, human hands on cat, text, watermark, signature, logo, blurry, lowres, jpeg artifacts",
+    "_negative_note": "[推定] 前段是貓特有的壞掉樣態（多腳、雙尾、耳朵數量錯 —— 這是四足動物生成最常見的失敗模式），後段是通用雜訊。**在 cfg = 1.0 下這整串不生效**，見上面的 _cfg_note。"
   },
 
   "character_lock": {
     "_note": "pipeline-plan.md §3：驗收只盯這兩項，守得住其他都守得住。",
     "must_preserve": ["右耳尖端白色缺角", "項圈上的黃銅小鈴鐺"],
-    "acceptance_threshold": "5 張測試圖中至少 4 張保住，整體可辨識為同一隻貓需 5/5"
+    "acceptance_threshold": "5 張測試圖中至少 4 張保住，整體可辨識為同一隻貓需 5/5",
+    "_expectation_zimage": "方案 C 的一致性會飄，ADR-010 已明文接受。這個門檻是 bake-off 的驗收標準，不是第一支片的發布條件 —— 第一支片的發布條件只有一個：mp4 存在。"
   }
 }

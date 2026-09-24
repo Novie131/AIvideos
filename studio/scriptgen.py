@@ -1,16 +1,41 @@
-"""Writer -> Critic -> Rewrite -> 硬檢查修復迴圈。可被 CLI 或 server 呼叫。"""
+"""Writer -> Critic -> Rewrite -> 硬檢查修復迴圈。
+
+**編排（generate_script）住在這裡，不在 endpoint 裡。**
+2026-09-25 之前，這段約 45 行的編排在 server.py 的 /api/script closure 與
+scripts/make_script.py 各存在一份，然後就飄了 —— CLI 版漏掉了跑完釋放 LLM 那步，
+違反 ADR-008「一次只載一個重模型」。同一件事寫兩遍的標準結局不是一次寫壞，是慢慢分岔。
+現在 Web endpoint 與 CLI 都只是 3 行薄殼，進度用 on_step callback 回報。
+"""
 from __future__ import annotations
-import json, re
+import asyncio, json, re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
+PROJECTS = ROOT / "projects"
+CHARS = ROOT / "characters"
 CPS = 4.5  # 中文 TTS 約 4.5 字/秒，旁白長度的硬約束
 CAMERAS = ("push_in", "pull_out", "pan_left", "pan_right", "static")
-SEC_PER_SHOT = 3.2  # I2V 與 Ken Burns 都在 2~4 秒最好看
+SEC_PER_SHOT = 1.8
+# 2026-09-25 從 3.2 改為 1.8。原因見 pipeline-plan.md ADR-012：
+# 實測 I2V（Wan 2.2 TI2V 5B）的動作幅度有硬上限，拉高 strength 會先毀掉角色才換到動作
+#（strength 0.95 時項圈與鈴鐺直接消失）。既然單一鏡頭內產生不了大動作，
+# 節奏就得靠「切」來給 —— 同樣 15 秒，從 5 個鏡頭變成 8~9 個，
+# 這不花任何運算，而且熱門 Shorts 本來就是 1~2 秒一切。
+
+# image_prompt 必須帶的動態線索。I2V 只能延續「已經在發生的動作」，
+# 不會讓一隻站著的貓開始跑 —— 所以動作必須在出圖階段就凍結進畫面裡。
+MOTION_CUES = (
+    "mid-stride", "mid-leap", "mid-air", "mid-jump", "mid-turn", "mid-fall",
+    "running", "leaping", "jumping", "pouncing", "dashing", "sprinting", "bounding",
+    "turning", "spinning", "twisting", "lunging", "climbing", "tumbling", "skidding",
+    "reaching", "stretching", "swiping", "pawing", "shaking", "arching", "crouching",
+    "falling", "landing", "rushing", "chasing", "fleeing", "stumbling", "recoiling",
+    "paw lifted", "paw raised", "in motion", "about to", "just as",
+)
 
 
 def suggest_shots(duration: int) -> int:
-    return max(3, min(12, round(duration / SEC_PER_SHOT)))
+    return max(4, min(20, round(duration / SEC_PER_SHOT)))
 
 
 def beats(duration: int) -> str:
@@ -66,15 +91,51 @@ narration 和 action 的內容必須完全不同。
 
 # 其他規則
 
-1. 總長 {duration} 秒，切成 {n_shots} 個 shot，每個 shot 2~4 秒。
+1. 總長 {duration} 秒，切成 {n_shots} 個 shot，**每個 shot 1.5~2.5 秒**。
+   節奏要快。Shorts 觀眾的耐心以秒計算，一個鏡頭停超過 2.5 秒就開始流失。
 2. 每句 narration 最多 {max_chars} 個字，含標點。心裡話本來就短。
-3. 第 1 個 shot 是 Hook：要有懸念、反差或情緒衝擊，讓人不想滑走。
-4. 最後一個 shot 必須有情感落點或轉折——一個沒想到的真相、一個失去、一個重逢。
+3. **不是每個 shot 都要有旁白。** 鏡頭變多之後，句句都講會變成連珠砲。
+   只在關鍵的 shot 放旁白，其餘留 narration 為空字串，讓畫面自己說話。
+   留白是節奏的一部分，不是偷懶。
+4. 第 1 個 shot 是 Hook：要有懸念、反差或情緒衝擊，讓人不想滑走。
+5. 最後一個 shot 必須有情感落點或轉折——一個沒想到的真相、一個失去、一個重逢。
    「成功逃走了」「安全了」「牠適應了」不算落點，那是沒有結尾。
-5. image_prompt 用英文寫給圖片模型。每個 shot 都要完整重複主角的外觀描述，一個字都不能省。
-   再加上場景、光線、鏡頭角度、鏡頭距離，結尾固定加 "vertical composition, cinematic lighting"。
+
+# image_prompt 的鐵則：每一格都必須是「動作進行到一半」的瞬間
+
+image_prompt 用英文寫給圖片模型。三件事缺一不可：
+
+  (a) 完整重複主角的外觀描述，一個字都不能省
+  (b) **一個正在發生的動作姿勢** ← 最常被忽略，但最重要
+  (c) 場景、光線、鏡頭距離，結尾固定加 "vertical composition, cinematic lighting"
+
+為什麼 (b) 是鐵則：產出的圖之後會交給影片模型讓它動起來，
+而影片模型**只能延續畫面裡已經在發生的動作，不會讓一隻站著的貓開始跑**。
+動作必須在圖裡就存在。
+
+  ❌ standing in a pyramid, looking around
+     ← 站著。做成影片只會是一隻站著微微呼吸的貓，等於靜止畫面
+  ✅ mid-stride running deeper into the pyramid, one front paw lifted off the ground,
+     ears pinned back, tail streaming behind
+     ← 動作已經凍結在畫面裡，影片模型只要把它延續下去
+
+每個 image_prompt 都必須包含至少一個這類動態線索：
+mid-stride / mid-leap / mid-air / paw lifted / turning / about to leap /
+crouching to pounce / falling / landing / reaching / recoiling / skidding to a stop
+
+# 相鄰鏡頭要有動作連續性
+
+把一個大動作拆成連續的兩三格，讓觀眾的腦補把它們連成流暢的動作。
+這比任何特效都有效，而且完全免費。
+
+  shot 3: crouching low, hind legs coiled, about to leap
+  shot 4: mid-air, body fully stretched, paws reaching forward
+  shot 5: landing hard, front paws skidding, dust kicked up
+
+# 其他
+
 6. camera 只能從這五個選：push_in, pull_out, pan_left, pan_right, static。
-7. subtitle 是螢幕字幕，通常等於 narration，最多 12 個字。
+7. subtitle 是螢幕字幕，通常等於 narration，最多 12 個字。沒有旁白的 shot，subtitle 也留空。
 
 只輸出 JSON，不要任何其他文字。格式：
 {{"title":"","hook":"","character":"","shots":[{{"id":1,"duration_sec":3,"action":"","image_prompt":"","narration":"","subtitle":"","camera":"push_in"}}]}}"""
@@ -91,6 +152,11 @@ CRITIC = """你是嚴格的 Shorts 監製。審查以下腳本。
 4. 最後一個 shot 有沒有真正的情感落點？「逃走了」「安全了」不算。
 5. 每個 shot 的 narration 是否在字數上限內？逐個數給我看。
 6. 各個 image_prompt 裡主角外觀描述是否完全一致？有沒有漏寫？
+7. **每個 image_prompt 是否都是「動作進行到一半」的瞬間？** 逐個 shot 檢查。
+   只要出現 standing / sitting / looking at / posing 這種靜態擺拍，就是不通過，
+   要指出該改成哪個具體動作姿勢。
+8. 相鄰的 shot 之間有沒有動作連續性？有沒有把一個大動作拆成連續幾格？
+9. 是不是每一格都硬塞了旁白？鏡頭多的時候應該有留白。
 
 用中文回答，不通過的要寫出具體怎麼改。最後給總分（1-10）。不要客氣。"""
 
@@ -155,9 +221,9 @@ def check(script: dict) -> tuple[int, list[str]]:
     if not shots:
         return 0, ["腳本沒有任何 shot"]
     total = sum(s.get("duration_sec", 0) for s in shots)
-    lo, hi = len(shots) * 2, len(shots) * 4
+    lo, hi = len(shots) * 1.2, len(shots) * 2.8
     if not lo <= total <= hi:
-        issues.append(f"總長 {total} 秒，不在 {lo}~{hi} 秒的合理範圍")
+        issues.append(f"總長 {total} 秒，不在 {lo:.0f}~{hi:.0f} 秒的合理範圍")
     for s in shots:
         sid = s.get("id")
         nar, act = s.get("narration", ""), s.get("action", "")
@@ -173,8 +239,13 @@ def check(script: dict) -> tuple[int, list[str]]:
             issues.append(f"Shot {sid} camera 值不合法：{s.get('camera')}")
         if not s.get("image_prompt"):
             issues.append(f"Shot {sid} 缺少 image_prompt")
-        if d > 4:
-            issues.append(f"Shot {sid} 長 {d} 秒，超過 4 秒（I2V 與 Ken Burns 的實用上限），須拆成兩格")
+        if d > 2.5:
+            issues.append(f"Shot {sid} 長 {d} 秒，超過 2.5 秒。Shorts 節奏要快，且單鏡頭再長也產生不了更多動作，須拆成兩格")
+        ip = (s.get("image_prompt") or "").lower()
+        if ip and not any(c in ip for c in MOTION_CUES):
+            issues.append(f"Shot {sid} 的 image_prompt 沒有任何動態姿勢線索，"
+                          f"畫面會是靜止的擺拍。須改寫成動作進行到一半的瞬間"
+                          f"（例如 mid-stride / paw lifted / turning / about to leap）")
 
     # 以下兩項只在 shot 數多時才會塌陷，5 格看不出來
     if len(shots) >= 6:
@@ -327,3 +398,94 @@ def fix_simplified(script: dict) -> int:
                 n += sum(1 for a, b in zip(v, new) if a != b)
                 script[f] = new
     return n
+
+
+# ---------- 編排：唯一的一份 ----------
+
+async def generate_script(idea: str, slug: str, *, character: str = "orange-cat",
+                          model: str = "qwen3:8b", think: bool = False,
+                          n_shots: int = 0, duration: int = 15,
+                          temperature: float = 0.8, repair_rounds: int = 3,
+                          release_llm: bool = True,
+                          on_step=lambda text, pct=None: None) -> dict:
+    """題材 → script.json。Web 與 CLI 共用這一份。
+
+    release_llm：跑完把 LLM 踢出記憶體（ADR-008）。Web 端在佇列還有排隊時會傳 False
+    以免反覆載入，CLI 一律 True。
+    """
+    from . import backends as be
+
+    cp = CHARS / character / "character.json"
+    char_json = cp.read_text(encoding="utf-8") if cp.exists() else "（未指定）"
+    app_en = json.loads(char_json).get("appearance_en", "") if cp.exists() else ""
+    n = n_shots or suggest_shots(duration)
+    max_chars = int(duration / n * CPS)
+
+    out = PROJECTS / slug
+    out.mkdir(parents=True, exist_ok=True)
+    (out / "idea.txt").write_text(idea, encoding="utf-8")
+
+    async def ask(prompt, **kw):
+        return await be.ollama_chat(model, prompt, think=think,
+                                    temperature=temperature, **kw)
+
+    def _post(d):
+        assign_cameras(d.get("shots", []))
+        return fix_simplified(d)
+
+    on_step("Writer 寫初稿…", 5)
+    draft = parse_json(await ask(WRITER.format(
+        character=char_json, idea=idea, n_shots=n, duration=duration,
+        max_chars=max_chars, structure=beats(duration)), json_mode=True))
+    _post(draft)
+    (out / "script.draft.json").write_text(
+        json.dumps(draft, ensure_ascii=False, indent=2), encoding="utf-8")
+    on_step("初稿完成", 30)
+
+    _, issues = check(draft)
+    hard = "\n".join(f"- {i}" for i in issues) or "-（程式檢查無誤）"
+
+    on_step("Critic 審稿…", 35)
+    crit = strip_think(await ask(CRITIC.format(
+        script=json.dumps(draft, ensure_ascii=False, indent=2))))
+    crit = f"{crit}\n\n【程式硬檢查】\n{hard}"
+    (out / "critique.md").write_text(crit, encoding="utf-8")
+    on_step("審稿完成", 60)
+
+    on_step("Rewrite 修稿…", 65)
+    final = parse_json(await ask(REWRITE.format(
+        script=json.dumps(draft, ensure_ascii=False, indent=2),
+        critique=crit), json_mode=True))
+    nz = _post(final)
+    on_step("修稿完成，鏡頭已自動指派"
+            + (f"，修正 {nz} 個簡體字" if nz else ""), 85)
+
+    for i in range(1, repair_rounds + 1):
+        _, issues = check(final)
+        if not issues:
+            break
+        on_step(f"硬檢查未過，自動修復第 {i} 輪（{len(issues)} 項）", 85 + i * 4)
+        final = parse_json(await ask(REPAIR.format(
+            script=json.dumps(final, ensure_ascii=False, indent=2),
+            issues="\n".join(f"- {x}" for x in issues)), json_mode=True))
+        _post(final)
+
+    final.setdefault("type", "story")
+    (out / "script.json").write_text(
+        json.dumps(final, ensure_ascii=False, indent=2), encoding="utf-8")
+    total, issues = check(final)
+    cons = consistency(final, app_en) if app_en else []
+    bad = [c["id"] for c in cons if not c["ok"]]
+    on_step(f"完成：{total} 秒 / {len(final.get('shots', []))} shots"
+            + (f"，殘留 {len(issues)} 項問題" if issues else "，硬檢查全過")
+            + (f"；角色描述缺漏 shot {bad}" if bad else ""), 100)
+
+    if release_llm:
+        before = be.system_stats()["available_gb"]
+        await be.ollama_unload(model)
+        await asyncio.sleep(2)
+        on_step(f"已釋放 {model}，可用記憶體 {before} → "
+                f"{be.system_stats()['available_gb']} GB", 100)
+
+    return {"slug": slug, "total": total, "issues": issues,
+            "consistency": cons, "script": final}
