@@ -25,3 +25,7 @@ projects/*/.work/
 !characters/*/dataset/**
 !characters/*/ref/
 !characters/*/ref/**
+
+# 例外：README 用的示意圖（人工挑選的少數幾張，不是產出物）
+!Document/assets/
+!Document/assets/**
