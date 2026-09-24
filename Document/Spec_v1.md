@@ -159,7 +159,9 @@ AIV_OLLAMA_URL=…      AIV_DRAWTHINGS_URL=http://192.168.1.50:7860 ./run.sh
 
 ```jsonc
 {
-  "type": "story",              // story | performance（performance 結構未定）
+  "type": "story",              // story（故事劇情）| performance（才藝展示）
+  "form": "quadruped",          // quadruped（四足）| anthro（人形，可雙足跳舞／演奏）
+  "music": "...",               // 選填，才藝軌的配樂註記
   "title": "...",
   "hook": "...",
   "character": "小橘",
@@ -203,7 +205,40 @@ AIV_OLLAMA_URL=…      AIV_DRAWTHINGS_URL=http://192.168.1.50:7860 ./run.sh
   "shots": [{ "id": 1, "file": "shot-01.png", "sec": 162.6, "seed": 20260921 }] }
 ```
 
-### 4.4 角色
+### 4.4 兩種腳本類型
+
+型態與配樂**都由使用者每次產腳本時決定**，不是角色或系統的固定屬性 ——
+同一隻小橘可以在故事片裡四足走路、在才藝片裡雙足打鼓。
+
+| | `type: "story"` | `type: "performance"` |
+|---|---|---|
+| 提示詞 | `WRITER` | `PERFORMANCE` |
+| 結構 | 敘事拍子（Hook → 建立 → 複雜化 → 落點） | **節拍段落**（起手式 → 主要段落 → 高潮 → 定格 pose） |
+| 轉折 | 必須有情感落點 | **沒有劇情，不要硬塞** |
+| 旁白 | 主角第一人稱心聲 | **一律留空**（表演本身就是內容） |
+| 預設型態 | `quadruped` | UI 預設切到 `anthro`，使用者可改回 |
+
+**角色型態**定義在 `characters/<id>/character.json` 的 `forms`：
+
+```jsonc
+"forms": {
+  "quadruped": { "label": "四足（一般貓）", "modifier": "",
+                 "can": "走、跑、跳、撲…", "cannot": "人類舞步、彈鋼琴、拿麥克風" },
+  "anthro":    { "label": "人形（可雙足跳舞／演奏）",
+                 "modifier": "anthropomorphic cat standing upright on two hind legs, …",
+                 "can": "跳舞、彈奏樂器、拿道具", "cannot": "自然的貓科動作" }
+}
+```
+
+`modifier` 會被注入編劇提示詞，要求每個 `image_prompt` 的外觀描述後面都帶上它；
+`can` / `cannot` 一併送進提示詞，讓模型知道**不要寫出這個型態做不到的動作**。
+UI 會把 `can` / `cannot` 顯示在型態選單下方。
+
+**配樂只提醒、不阻擋。** 使用者填了 `music` 就回傳 `MUSIC_WARNING`
+（有版權音樂會被 Content ID 認領、該片無法營利，並列出免費來源）。
+要用什麼音樂是使用者的決定。
+
+### 4.5 角色
 
 `characters/<id>/character.json` 的 `appearance_en` **必須被每個 `image_prompt`
 完整內嵌，一字不可省**；`scriptgen.consistency()` 會逐格檢查。
@@ -226,7 +261,7 @@ Base `http://127.0.0.1:8765`。**所有長任務都回 `{"job": "<id>"}` 後立�
 | GET | `/api/models` · `/api/characters` · PUT `/api/characters/{cid}` | |
 | GET | `/api/projects` | 列表，含 `images` / `audios` / `video` 完成度 |
 | GET/PUT | `/api/projects/{slug}` | 單一專案，含 `media`（縮圖、影片、manifest 路徑） |
-| **POST** | **`/api/script`** | 題材 → script.json |
+| **POST** | **`/api/script`** | `{idea, slug, script_type, form, music?, …}` → script.json |
 | **POST** | **`/api/images`** | `{slug, preset?, only?, force?}` |
 | **GET/POST** | **`/api/voices` · `/api/tts`** | 可用中文語音 / 產旁白 |
 | **POST** | **`/api/render`** | `{slug, bgm?, force?}` |
@@ -271,7 +306,7 @@ Base `http://127.0.0.1:8765`。**所有長任務都回 `{"job": "<id>"}` 後立�
 |---|---|---|---|
 | 1 | **右耳白色缺角出不來** | §3 兩個驗收點之一，5/5 失敗 | 減法特徵，擴散模型畫不出「少一塊」。加法特徵（鈴鐺、項圈）5/5 成功。**辨識點設計需重排** |
 | 2 | **I2V 動作幅度有硬上限** | 做得了呼吸感，做不了舞蹈 | strength 0.6→0.95，動作僅 +54%，失真 +92%（0.95 時項圈鈴鐺消失）。見 ADR-012 |
-| 3 | **才藝軌未定** | 跳舞路線卡住 | 四足貓做不了人類舞步；pose-driven 技術全是人體骨架。卡在兩個設定決定：是否開擬人雙足角色、音樂來源 |
+| 3 | **才藝軌的動作幅度** | 人形角色已可產腳本與出圖，但 I2V 仍做不出真正的舞蹈 | 型態與配樂已改為使用者每次自選（見 §4.4）。剩下的限制是 #2 —— 目前只能靠連續分鏡讓觀眾腦補動作 |
 | 4 | Draw Things 必須開著 App 並手動啟用 API | 無法無人值守 | 短期接受 |
 | 5 | ffmpeg 無 `libass` / `freetype` | 無法用 `subtitles`/`drawtext` | 已用 Pillow 畫 PNG + `overlay` 繞過。**`brew install ffmpeg` 修不了**，formula 本身就沒編進去 |
 | 6 | git 無遠端 | 無備份，作品集無法分享 | 待使用者決定 |

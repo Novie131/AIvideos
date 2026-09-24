@@ -198,6 +198,9 @@ class ScriptReq(BaseModel):
     n_shots: int = 0   # 0 = 依片長自動決定
     duration: int = 15
     temperature: float = 0.8
+    script_type: str = "story"      # story | performance
+    form: str = "quadruped"         # quadruped | anthro，見 character.json 的 forms
+    music: str = ""                 # 才藝軌的配樂註記；有值就回傳版權提醒
 
 
 def _slugify(s: str) -> str:
@@ -214,6 +217,7 @@ async def api_script(r: ScriptReq):
         return await sg.generate_script(
             r.idea, slug, character=r.character, model=r.model, think=r.think,
             n_shots=r.n_shots, duration=r.duration, temperature=r.temperature,
+            script_type=r.script_type, form=r.form, music=r.music,
             # 佇列還有排隊時不釋放，避免連續產稿反覆載入
             release_llm=AUTO_UNLOAD["on"] and not QUEUE.q.qsize(),
             on_step=lambda t, pct=None: QUEUE.step(job, t, pct))

@@ -20,12 +20,18 @@ def main() -> None:
     p.add_argument("--think", action="store_true")
     p.add_argument("--shots", type=int, default=0, help="0 = 依片長自動決定")
     p.add_argument("--duration", type=int, default=15)
+    p.add_argument("--type", dest="script_type", default="story",
+                   choices=["story", "performance"], help="故事劇情 / 才藝展示")
+    p.add_argument("--form", default="quadruped", choices=["quadruped", "anthro"],
+                   help="四足貓 / 人形（可雙足跳舞、演奏）")
+    p.add_argument("--music", default="", help="才藝軌的配樂註記（會提醒版權）")
     p.add_argument("--keep-llm", action="store_true", help="跑完不釋放 LLM")
     a = p.parse_args()
 
     r = asyncio.run(sg.generate_script(
         a.idea, a.slug, character=a.character, model=a.model, think=a.think,
         n_shots=a.shots, duration=a.duration, release_llm=not a.keep_llm,
+        script_type=a.script_type, form=a.form, music=a.music,
         on_step=lambda t, pct=None: print(f"  {t}", flush=True)))
 
     s = r["script"]
@@ -35,6 +41,8 @@ def main() -> None:
     for c in r["consistency"]:
         if not c["ok"]:
             print(f"  ⚠ Shot {c['id']} 角色描述缺：{', '.join(c['missing'])}")
+    if r.get("music_warning"):
+        print(f"\n⚠ {r['music_warning']}")
     print(f"\n輸出：projects/{r['slug']}/")
 
 

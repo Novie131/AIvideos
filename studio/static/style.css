@@ -130,3 +130,7 @@ summary{cursor:pointer;color:var(--dim);font-size:11px;user-select:none}
 #charCard .en{color:#8b949e;font-size:12px;margin-bottom:8px}
 #charCard p{font-size:12px;line-height:1.6;margin:0 0 8px}
 #charCard .k{color:#8b949e;font-size:11px;text-transform:uppercase;letter-spacing:.04em}
+
+.warn-box{font-size:11px;line-height:1.55;color:#d29922;background:#2a2113;
+  border:1px solid #4a3a12;border-radius:6px;padding:8px;margin-top:6px}
+#formHint{font-size:11px;line-height:1.5;margin:-4px 0 8px}

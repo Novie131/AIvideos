@@ -39,10 +39,46 @@ async function loadSelects() {
   const cs = await api('/api/characters', {m: 'GET'}).catch(() => []);
   $('#character').innerHTML = cs.map(c =>
     `<option value="${c.id}">${c.name}</option>`).join('') || '<option value="">（無角色）</option>';
+  window._chars = cs;
+  syncForm();
   const vs = await api('/api/voices', {m: 'GET'}).catch(() => []);
   $('#voice').innerHTML = vs.map(v => `<option>${v}</option>`).join('')
     || '<option value="">（無中文語音）</option>';
 }
+
+/* ---------- 類型 / 型態 / 配樂 ---------- */
+const MUSIC_WARN = '提醒：使用有版權的音樂（流行歌、K-pop、動漫主題曲等）會被 YouTube '
+  + 'Content ID 認領，該片將無法營利。免費且可營利的來源：YouTube 創作者工作室的音訊庫、'
+  + 'Pixabay Music、Free Music Archive（需確認個別授權）。';
+
+function syncForm() {
+  const c = (window._chars || []).find(x => x.id === $('#character').value)
+         || (window._chars || [])[0];
+  const forms = (c && c.data && c.data.forms) || {};
+  const keys = Object.keys(forms).filter(k => !k.startsWith('_'));
+  const cur = $('#form').value;
+  $('#form').innerHTML = keys.map(k =>
+    `<option value="${k}" ${k === cur ? 'selected' : ''}>${forms[k].label || k}</option>`).join('')
+    || '<option value="quadruped">四足</option>';
+  const f = forms[$('#form').value];
+  $('#formHint').innerHTML = f
+    ? `做得到：${f.can}<br>做不到：<span style="color:var(--warn,#d29922)">${f.cannot}</span>`
+    : '';
+  const perf = $('#scriptType').value === 'performance';
+  $('#musicBox').hidden = !perf;
+  $('#musicWarn').textContent = MUSIC_WARN;
+  // 才藝軌預設人形，但使用者仍可改回四足
+  if (perf && !syncForm._touched && keys.includes('anthro')) {
+    $('#form').value = 'anthro'; syncForm._touched = true; syncForm();
+  }
+}
+['#scriptType', '#character', '#form'].forEach(sel => {
+  const el = $(sel);
+  if (el) el.addEventListener('change', () => {
+    if (sel === '#form') syncForm._touched = true;
+    syncForm();
+  });
+});
 
 /* ---------- 專案 ---------- */
 async function loadProjects() {
@@ -97,11 +133,16 @@ async function renderChar() {
   const c = cs.find(x => x.name === name || curSlug.includes(x.id)) || cs[0];
   $('#charPanel').hidden = !c;
   if (!c) return;
-  const lock = (cur.media?.manifest) || null;
-  $('#charCard').innerHTML = `<div class="nm">${c.name}</div>
-    <div class="en">${c.name_en || ''}${c.species ? ' · ' + c.species : ''}</div>
-    <div class="k">外觀</div><p>${c.appearance_zh || ''}</p>
-    ${c.personality ? `<div class="k">性格</div><p>${c.personality}</p>` : ''}
+  const lock = (cur.media?.manifest) || null, d = c.data || {};
+  const fm = (d.forms || {})[cur.script.form || 'quadruped'];
+  $('#charCard').innerHTML = `<div class="nm">${d.name || c.name}</div>
+    <div class="en">${d.name_en || ''}${d.species ? ' · ' + d.species : ''}</div>
+    ${cur.script.type ? `<div class="k">類型</div><p>${
+      cur.script.type === 'performance' ? '才藝展示' : '故事劇情'}${
+      fm ? ' · ' + fm.label : ''}</p>` : ''}
+    <div class="k">外觀</div><p>${d.appearance_zh || ''}</p>
+    ${d.personality ? `<div class="k">性格</div><p>${d.personality}</p>` : ''}
+    ${cur.script.music ? `<div class="k">配樂</div><p>${cur.script.music}</p>` : ''}
     ${lock ? `<div class="k">出圖參數</div><p>${lock.preset} · ${lock.sampler}
       · ${lock.steps} 步 · cfg ${lock.cfg} · seed ${lock.base_seed}+id</p>` : ''}`;
 }
@@ -198,10 +239,12 @@ $('#genBtn').onclick = async () => {
   const b = {idea, slug: $('#slug').value.trim() || idea,
     character: $('#character').value, model: $('#model').value,
     think: $('#think').checked, n_shots: +$('#nShots').value,
-    duration: +$('#duration').value, temperature: +$('#temp').value};
+    duration: +$('#duration').value, temperature: +$('#temp').value,
+    script_type: $('#scriptType').value, form: $('#form').value,
+    music: $('#scriptType').value === 'performance' ? $('#music').value.trim() : ''};
   $('#genBtn').disabled = true;
   try { const r = await api('/api/script', {b}); curSlug = r.slug; }
-  catch (e) { alert('失敗：' + e.message); }
+  catch (e) { notice('失敗：' + e.message); }
   $('#genBtn').disabled = false;
 };
 $('#saveBtn').onclick = async () => {

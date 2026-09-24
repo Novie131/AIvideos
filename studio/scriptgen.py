@@ -140,6 +140,69 @@ crouching to pounce / falling / landing / reaching / recoiling / skidding to a s
 只輸出 JSON，不要任何其他文字。格式：
 {{"title":"","hook":"","character":"","shots":[{{"id":1,"duration_sec":3,"action":"","image_prompt":"","narration":"","subtitle":"","camera":"push_in"}}]}}"""
 
+
+# ---------- 才藝軌（type = "performance"）----------
+# 與故事軌的差別：跟著節拍走，不跟著劇情走。沒有轉折，只有段落。
+# 角色型態（四足／人形）由使用者每次選，不是角色的固定屬性 —— 見 character.json 的 forms。
+
+PERFORMANCE = """你是 YouTube Shorts 的才藝短片分鏡師。這一支**不是故事，是表演**。
+
+固定主角設定（每一集都必須完全一致）：
+{character}
+
+表演內容：{idea}
+角色型態：{form_label}
+  這個型態做得到：{form_can}
+  做不到：{form_cannot}
+  **絕對不要寫出「做不到」清單裡的動作。**
+
+# 這支片沒有劇情，不要硬塞
+
+沒有起承轉合、沒有轉折、沒有情感落點。觀眾來看的是**表演本身**。
+你要做的是把一段表演切成連續的動作瞬間。
+
+# 結構：跟著節拍，不跟著劇情
+
+  段落 1  起手式    —— 第一格就要有辨識度，讓人停下來
+  段落 2  主要段落  —— 動作的主體，幅度最大
+  段落 3  高潮      —— 最誇張、最有記憶點的一個動作
+  段落 4  收尾      —— 一個定格 pose
+
+# 鐵則：每一格都是動作進行到一半
+
+產出的圖之後會交給影片模型讓它動起來，而影片模型**只能延續畫面裡已經在發生的動作**。
+動作必須在圖裡就存在。連續的格子要能串成一個完整動作。
+
+  ❌ dancing in a studio                      ← 太籠統，模型不知道畫什麼姿勢
+  ✅ mid-spin, one arm thrown up, head tilted back, tail whipping around
+     ← 具體到可以畫出來的單一瞬間
+
+# 旁白
+
+**才藝片通常不需要旁白**，narration 一律留空字串。
+subtitle 只在需要標示段落時才用（例如「第一次嘗試」），通常也留空。
+
+# 其他規則
+
+1. 總長 {duration} 秒，切成 {n_shots} 個 shot，**每個 shot 1.5~2.5 秒**。
+2. image_prompt 用英文。三件事缺一不可：
+   (a) 完整重複主角的外觀描述，一個字都不能省
+   (b) {form_hint}
+   (c) 一個正在發生的動作姿勢 + 場景光線，結尾固定加 "vertical composition, cinematic lighting"
+3. camera 只能從這五個選：push_in, pull_out, pan_left, pan_right, static。
+4. action 用中文描述這一格在做什麼動作。
+
+只輸出 JSON，不要任何其他文字。格式：
+{{"type":"performance","title":"","hook":"","character":"","shots":[{{"id":1,"duration_sec":2,"action":"","image_prompt":"","narration":"","subtitle":"","camera":"push_in"}}]}}"""
+
+
+# 音樂版權提醒 —— 只提醒，不阻擋。使用者要用什麼音樂是他的決定。
+MUSIC_WARNING = (
+    "提醒：使用有版權的音樂（流行歌、K-pop、動漫主題曲等）會被 YouTube Content ID 認領，"
+    "該片將無法營利。免費且可營利的來源：YouTube 創作者工作室的音訊庫、"
+    "Pixabay Music、Free Music Archive（需確認個別授權）。"
+)
+
 CRITIC = """你是嚴格的 Shorts 監製。審查以下腳本。
 
 腳本：
@@ -405,6 +468,8 @@ def fix_simplified(script: dict) -> int:
 async def generate_script(idea: str, slug: str, *, character: str = "orange-cat",
                           model: str = "qwen3:8b", think: bool = False,
                           n_shots: int = 0, duration: int = 15,
+                          script_type: str = "story", form: str = "quadruped",
+                          music: str = "",
                           temperature: float = 0.8, repair_rounds: int = 3,
                           release_llm: bool = True,
                           on_step=lambda text, pct=None: None) -> dict:
@@ -417,7 +482,10 @@ async def generate_script(idea: str, slug: str, *, character: str = "orange-cat"
 
     cp = CHARS / character / "character.json"
     char_json = cp.read_text(encoding="utf-8") if cp.exists() else "（未指定）"
-    app_en = json.loads(char_json).get("appearance_en", "") if cp.exists() else ""
+    cdata = json.loads(char_json) if cp.exists() else {}
+    app_en = cdata.get("appearance_en", "")
+    fm = (cdata.get("forms") or {}).get(form) or {}
+    mod = fm.get("modifier", "")
     n = n_shots or suggest_shots(duration)
     max_chars = int(duration / n * CPS)
 
@@ -434,9 +502,25 @@ async def generate_script(idea: str, slug: str, *, character: str = "orange-cat"
         return fix_simplified(d)
 
     on_step("Writer 寫初稿…", 5)
-    draft = parse_json(await ask(WRITER.format(
-        character=char_json, idea=idea, n_shots=n, duration=duration,
-        max_chars=max_chars, structure=beats(duration)), json_mode=True))
+    if script_type == "performance":
+        tmpl = PERFORMANCE.format(
+            character=char_json, idea=idea, n_shots=n, duration=duration,
+            form_label=fm.get("label", form), form_can=fm.get("can", "—"),
+            form_cannot=fm.get("cannot", "—"),
+            form_hint=(f"務必在外觀描述後加上「{mod}」，這決定角色是四足還是人形"
+                       if mod else "維持一般四足貓的體態，不要寫成人形"))
+        if music:
+            on_step(MUSIC_WARNING, 5)
+    else:
+        tmpl = WRITER.format(
+            character=char_json, idea=idea, n_shots=n, duration=duration,
+            max_chars=max_chars, structure=beats(duration))
+        if mod:
+            tmpl += (f"\n\n# 角色型態（{fm.get('label', form)}）\n"
+                     f"每個 image_prompt 的外觀描述後面都必須加上：{mod}\n"
+                     f"這個型態做得到：{fm.get('can','—')}；做不到：{fm.get('cannot','—')}。"
+                     f"不要寫出做不到的動作。")
+    draft = parse_json(await ask(tmpl, json_mode=True))
     _post(draft)
     (out / "script.draft.json").write_text(
         json.dumps(draft, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -470,7 +554,10 @@ async def generate_script(idea: str, slug: str, *, character: str = "orange-cat"
             issues="\n".join(f"- {x}" for x in issues)), json_mode=True))
         _post(final)
 
-    final.setdefault("type", "story")
+    final["type"] = script_type
+    final["form"] = form
+    if music:
+        final["music"] = music
     (out / "script.json").write_text(
         json.dumps(final, ensure_ascii=False, indent=2), encoding="utf-8")
     total, issues = check(final)
@@ -488,4 +575,5 @@ async def generate_script(idea: str, slug: str, *, character: str = "orange-cat"
                 f"{be.system_stats()['available_gb']} GB", 100)
 
     return {"slug": slug, "total": total, "issues": issues,
-            "consistency": cons, "script": final}
+            "consistency": cons, "script": final,
+            "music_warning": MUSIC_WARNING if music else None}

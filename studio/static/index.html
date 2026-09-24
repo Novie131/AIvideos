@@ -29,8 +29,24 @@
       <input id="idea" placeholder="橘貓穿越古埃及">
       <label>代號 <span class="hint">資料夾名稱</span></label>
       <input id="slug" placeholder="ep002-dino">
+      <label>類型</label>
+      <select id="scriptType">
+        <option value="story">故事劇情</option>
+        <option value="performance">才藝展示（跳舞／演奏）</option>
+      </select>
+
       <label>主角</label>
       <select id="character"></select>
+
+      <label>角色型態</label>
+      <select id="form"></select>
+      <div class="hint" id="formHint"></div>
+
+      <div id="musicBox" hidden>
+        <label>配樂 <span class="hint">選填，只是註記</span></label>
+        <input id="music" placeholder="例：YouTube 音訊庫的某首 / 自製">
+        <div class="warn-box" id="musicWarn"></div>
+      </div>
       <label>LLM 模型</label>
       <select id="model"></select>
 
