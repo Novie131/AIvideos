@@ -31,21 +31,36 @@ def load_preset(name: str = "style-v1") -> dict:
     return json.loads((PRESETS / f"{name}.json").read_text(encoding="utf-8"))
 
 
-def build_prompt(shot: dict, preset: dict) -> str:
-    """最終 prompt = shot.image_prompt（已內嵌 appearance_en）+ style_suffix。
+def build_prompt(shot: dict, preset: dict, form_modifier: str = "") -> str:
+    """最終 prompt = [型態前綴] + shot.image_prompt（已內嵌 appearance_en）+ style_suffix。
 
     scriptgen 產出的 image_prompt 已經完整包含 character.json 的 appearance_en
     （character.json 的 note 明文要求，`sg.consistency()` 會檢查），所以這裡不再重複拼。
+
+    **型態修飾詞是前綴不是後綴。** 2026-09-25 實測：把 anthropomorphic 放在
+    appearance_en 之後完全無效 —— 模型被前面那段「正常貓」的長描述錨定，
+    產出的仍是四足貓。搬到最前面就成功了，且不需要動 cfg。
     """
     suffix = (preset.get("prompt") or {}).get("style_suffix") or ""
     p = shot.get("image_prompt", "").strip()
+    if form_modifier:
+        p = f"{form_modifier.rstrip(', ')} {p}"
     return f"{p}, {suffix}" if suffix else p
 
 
-def api_payload(shot: dict, preset: dict) -> dict:
+def form_modifier(character: str, form: str) -> str:
+    """取出角色型態的提示詞前綴（四足通常為空字串）。"""
+    cp = CHARS / character / "character.json"
+    if not cp.exists():
+        return ""
+    forms = (json.loads(cp.read_text(encoding="utf-8")).get("forms") or {})
+    return (forms.get(form) or {}).get("modifier", "")
+
+
+def api_payload(shot: dict, preset: dict, form_mod: str = "") -> dict:
     m, out, seed = preset["model"], preset["output"], preset["seed"]
     return {
-        "prompt": build_prompt(shot, preset),
+        "prompt": build_prompt(shot, preset, form_mod),
         "negative_prompt": (preset.get("prompt") or {}).get("negative") or "",
         "model": m["checkpoint"],
         "sampler": m["sampler"],
@@ -78,10 +93,11 @@ def face_crop(src: Path, dst: Path, size: int) -> None:
     im.crop((left, top, left + side, top + side)).resize((size, size), Image.LANCZOS).save(dst)
 
 
-async def render_one(shot: dict, preset: dict, out: Path, *, api: str | None = None) -> dict:
+async def render_one(shot: dict, preset: dict, out: Path, *, api: str | None = None,
+                     form_mod: str = "") -> dict:
     """出一張圖。對外的最小單位 —— 換後端只需要換掉這個函式。"""
     url = (api or preset["model"].get("api") or be.DRAWTHINGS).rstrip("/")
-    body = api_payload(shot, preset)
+    body = api_payload(shot, preset, form_mod)
     t0 = time.time()
     async with httpx.AsyncClient(timeout=TIMEOUT) as c:
         r = await c.post(f"{url}/sdapi/v1/txt2img", json=body)
@@ -111,6 +127,9 @@ async def render_shots(slug: str, *, preset_name: str = "style-v1", force: bool 
     d = PROJECTS / slug
     script = json.loads((d / "script.json").read_text(encoding="utf-8"))
     preset = load_preset(preset_name)
+    # 型態由腳本帶（scriptgen 寫入 script.json 的 form 欄位），不是出圖時才選
+    fmod = form_modifier(script.get("character_id", "orange-cat"),
+                         script.get("form", "quadruped"))
     shots = script.get("shots", [])
     if only:
         shots = [s for s in shots if s.get("id") in only]
@@ -129,7 +148,7 @@ async def render_shots(slug: str, *, preset_name: str = "style-v1", force: bool 
             results.append({"id": sid, "file": out.name, "skipped": "已存在"})
             continue
         on_step(f"Shot {sid}：出圖中（約 162 秒）…", pct)
-        r = await render_one(s, preset, out, api=api)
+        r = await render_one(s, preset, out, api=api, form_mod=fmod)
         r["id"] = sid
         results.append(r)
         on_step(f"Shot {sid}：完成 {r['sec']}s", pct)
@@ -142,6 +161,7 @@ async def render_shots(slug: str, *, preset_name: str = "style-v1", force: bool 
         "checkpoint": preset["model"]["checkpoint"],
         "sampler": preset["model"]["sampler"], "steps": preset["model"]["steps"],
         "cfg": preset["model"]["cfg"], "base_seed": preset["seed"]["base_seed"],
+        "form": script.get("form", "quadruped"),
         "generated": time.strftime("%Y-%m-%dT%H:%M:%S"),
         "shots": results,
     }

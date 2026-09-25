@@ -7,18 +7,21 @@
   "personality": "膽小但重感情，遇到危險會先躲起來，但為了在乎的人會硬著頭皮衝出去。",
   "note": "每個 shot 的 image_prompt 都必須完整包含 appearance_en，不可簡寫或省略。",
   "forms": {
-    "_note": "角色型態。由使用者每次產腳本時選擇，不是角色的固定屬性 —— 同一隻小橘可以在故事片裡四足走路、在才藝片裡雙足打鼓。modifier 會接在 appearance_en 後面送進 image_prompt。",
+    "_note": "角色型態。由使用者每次產腳本時選擇，不是角色的固定屬性 —— 同一隻小橘可以在故事片裡四足走路、在才藝片裡雙足打鼓。**modifier 會接在 image_prompt 的最前面，不是後面** —— 2026-09-25 實測：把 anthropomorphic 放在 appearance_en 之後完全無效，模型被前面那段260 字元的「正常貓」描述牢牢錨定，產出的仍是四足貓。搬到最前面就成功了，而且不需要提高 cfg（提高 cfg 到 3.0 也行，但畫風會偏離故事軌且慢一倍）。",
     "quadruped": {
       "label": "四足（一般貓）",
       "modifier": "",
       "can": "走、跑、跳、撲、趴、蹭、拍打、疊杯、鑽箱",
-      "cannot": "人類舞步、彈鋼琴、拿麥克風"
+      "cannot": "人類舞步、彈鋼琴、拿麥克風",
+      "_placement": "prefix"
     },
     "anthro": {
       "label": "人形（可雙足跳舞／演奏）",
-      "modifier": "anthropomorphic cat standing upright on two hind legs, humanlike posture with expressive front paws used as hands, full body visible",
+      "modifier": "full-body anthropomorphic cat character, bipedal, standing upright like a human, human-like shoulders, arms and hands, the character is",
       "can": "跳舞、彈奏樂器、拿道具、比手勢",
-      "cannot": "自然的貓科動作（四足奔跑會變怪）"
+      "cannot": "自然的貓科動作（四足奔跑會變怪）",
+      "_placement": "prefix",
+      "_why_prefix": "擴散模型對提示詞前段權重高得多。這段必須在 appearance_en 之前，「the character is」結尾是為了讓外觀描述自然接在後面。"
     }
   }
 }
