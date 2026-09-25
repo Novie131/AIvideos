@@ -1,0 +1,81 @@
+{
+  "title": "橘貓穿越古埃及",
+  "hook": "小橘在現代公寓醒來，發現自己站在金字塔前",
+  "character": "Xiao Ju",
+  "shots": [
+    {
+      "id": 1,
+      "duration_sec": 1.5,
+      "action": "小橘驚訝地睜大眼睛，周圍是古埃及神廟與金字塔",
+      "image_prompt": "a small round-faced orange and white tabby cat, distinct M-shaped stripe on forehead, a small white notch on the tip of the right ear, large amber eyes, wearing a worn dark blue cloth collar with a small brass bell, white-tipped tail, mid-leap, crouching on a stone platform overlooking a grand pyramid, cinematic lighting, vertical composition",
+      "narration": "",
+      "subtitle": "",
+      "camera": "push_in"
+    },
+    {
+      "id": 2,
+      "duration_sec": 2.5,
+      "action": "小橘慌張地四處張望，耳朵抖動",
+      "image_prompt": "a small round-faced orange and white tabby cat, distinct M-shaped stripe on forehead, a small white notch on the tip of the right ear, large amber eyes, wearing a worn dark blue cloth collar with a small brass bell, white-tipped tail, mid-recoiling, ears flicking back in alarm, standing on a sand-covered pathway near a colossal statue, cinematic lighting, vertical composition",
+      "narration": "這裡…不是我家。",
+      "subtitle": "這裡…不是我家。",
+      "camera": "pull_out"
+    },
+    {
+      "id": 3,
+      "duration_sec": 1.5,
+      "action": "小橘慌亂地跳上石柱，腳底打滑",
+      "image_prompt": "a small round-faced orange and white tabby cat, distinct M-shaped stripe on forehead, a small white notch on the tip of the right ear, large amber eyes, wearing a worn dark blue cloth collar with a small brass bell, white-tipped tail, mid-skidding, paws slipping on a smooth stone column, background showing a massive obelisk, cinematic lighting, vertical composition",
+      "narration": "",
+      "subtitle": "",
+      "camera": "pan_left"
+    },
+    {
+      "id": 4,
+      "duration_sec": 2.5,
+      "action": "小橘被法老的雕像盯住，尾巴緊緊抓牢石柱",
+      "image_prompt": "a small round-faced orange and white tabby cat, distinct M-shaped stripe on forehead, a small white notch on the tip of the right ear, large amber eyes, wearing a worn dark blue cloth collar with a small brass bell, white-tipped tail, mid-grabbing, tail tightly wrapped around a stone column, eyes locked on a towering pharaoh statue, cinematic lighting, vertical composition",
+      "narration": "他…在看我。",
+      "subtitle": "他…在看我。",
+      "camera": "push_in"
+    },
+    {
+      "id": 5,
+      "duration_sec": 1.5,
+      "action": "小橘突然被一道金色光芒包圍，身體開始透明",
+      "image_prompt": "a small round-faced orange and white tabby cat, distinct M-shaped stripe on forehead, a small white notch on the tip of the right ear, large amber eyes, wearing a worn dark blue cloth collar with a small brass bell, white-tipped tail, mid-illuminating, body glowing with golden light, surrounded by ancient hieroglyphs, cinematic lighting, vertical composition",
+      "narration": "",
+      "subtitle": "",
+      "camera": "pull_out"
+    },
+    {
+      "id": 6,
+      "duration_sec": 2.5,
+      "action": "小橘被光帶走，最後一格看到自己的尾巴消失",
+      "image_prompt": "a small round-faced orange and white tabby cat, distinct M-shaped stripe on forehead, a small white notch on the tip of the right ear, large amber eyes, wearing a worn dark blue cloth collar with a small brass bell, white-tipped tail, mid-disappearing, tail vanishing into golden light, background showing a fading pyramid, cinematic lighting, vertical composition",
+      "narration": "我…要回家。",
+      "subtitle": "我…要回家。",
+      "camera": "pan_right"
+    },
+    {
+      "id": 7,
+      "duration_sec": 1.5,
+      "action": "小橘在現代公寓醒來，看到窗外有金字塔倒影",
+      "image_prompt": "a small round-faced orange and white tabby cat, distinct M-shaped stripe on forehead, a small white notch on the tip of the right ear, large amber eyes, wearing a worn dark blue cloth collar with a small brass bell, white-tipped tail, mid-waking, paws on a windowsill, sunlight reflecting pyramid-shaped shadows on the wall, cinematic lighting, vertical composition",
+      "narration": "",
+      "subtitle": "",
+      "camera": "push_in"
+    },
+    {
+      "id": 8,
+      "duration_sec": 2.5,
+      "action": "小橘轉頭看向鏡子，發現自己尾巴有金色光暈",
+      "image_prompt": "a small round-faced orange and white tabby cat, distinct M-shaped stripe on forehead, a small white notch on the tip of the right ear, large amber eyes, wearing a worn dark blue cloth collar with a small brass bell, white-tipped tail, mid-turning, tail glowing with golden light, reflection showing a pyramid shape in the mirror, cinematic lighting, vertical composition",
+      "narration": "我…不一樣了。",
+      "subtitle": "我…不一樣了。",
+      "camera": "static"
+    }
+  ],
+  "type": "story",
+  "form": "quadruped"
+}

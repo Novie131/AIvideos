@@ -309,7 +309,7 @@ Base `http://127.0.0.1:8765`。**所有長任務都回 `{"job": "<id>"}` 後立�
 | 3 | **才藝軌的動作幅度** | 人形角色已可產腳本與出圖，但 I2V 仍做不出真正的舞蹈 | 型態與配樂已改為使用者每次自選（見 §4.4）。剩下的限制是 #2 —— 目前只能靠連續分鏡讓觀眾腦補動作 |
 | 4 | Draw Things 必須開著 App 並手動啟用 API | 無法無人值守 | 短期接受 |
 | 5 | ffmpeg 無 `libass` / `freetype` | 無法用 `subtitles`/`drawtext` | 已用 Pillow 畫 PNG + `overlay` 繞過。**`brew install ffmpeg` 修不了**，formula 本身就沒編進去 |
-| 6 | git 無遠端 | 無備份，作品集無法分享 | 待使用者決定 |
+| 6 | ~~git 無遠端~~ | — | ✅ 已解：github.com/Novie131/AIvideos |
 
 ---
 
