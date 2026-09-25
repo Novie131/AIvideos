@@ -30,6 +30,17 @@ PHOTO_JARGON = ("slow motion", "high contrast lighting", "photorealistic", "phot
 _FIXED_TAIL = ("vertical composition", "cinematic lighting")
 
 
+def _has_motion(ip: str) -> bool:
+    """image_prompt 有沒有動態線索。
+
+    除了 MOTION_CUES 清單，也接受任何 `mid-xxx` 形式 —— 模型會自然生出
+    mid-crouch / mid-sprint / mid-recoiling / mid-landing，那些都是正確寫法，
+    列舉式的清單永遠補不完。（2026-09-25：原本只比清單，害模型修三輪都「修不好」。）
+    """
+    low = ip.lower()
+    return any(c in low for c in MOTION_CUES) or bool(re.search(r"\bmid-\w", low))
+
+
 def _prompt_body(ip: str) -> str:
     """去掉角色外觀與固定字尾，只留下這一格真正獨有的內容。
 
@@ -116,9 +127,18 @@ narration 和 action 的內容必須完全不同。
 1. 總長 {duration} 秒，切成 {n_shots} 個 shot，**每個 shot 1.5~2.5 秒**。
    節奏要快。Shorts 觀眾的耐心以秒計算，一個鏡頭停超過 2.5 秒就開始流失。
 2. 每句 narration 最多 {max_chars} 個字，含標點。心裡話本來就短。
-3. **不是每個 shot 都要有旁白。** 鏡頭變多之後，句句都講會變成連珠砲。
-   只在關鍵的 shot 放旁白，其餘留 narration 為空字串，讓畫面自己說話。
-   留白是節奏的一部分，不是偷懶。
+3. **不是每個 shot 都要有旁白，而且大多數都不該有。**
+
+   秒數要按用途分配，不要平均切：
+
+   - **純動作的格子：1.5 秒，narration 一律留空字串。** 這種格子是給眼睛看的
+   - **要說話的格子：2~2.5 秒**，這樣才容納得下一句完整的中文
+
+   {n_shots} 格裡**最多 3~4 格有旁白**，其餘全部留空。
+
+   **寧可留空，也不要寫出不成句的碎片。**
+   「這是影」「我是神」這種被字數砍斷的殘句，比沒有旁白更糟 ——
+   觀眾看到的是一句沒講完的話。放不下就不要放，讓那一格用畫面說。
 4. 第 1 個 shot 是 Hook：要有懸念、反差或情緒衝擊，讓人不想滑走。
 5. 最後一個 shot 必須有情感落點或轉折——一個沒想到的真相、一個失去、一個重逢。
    「成功逃走了」「安全了」「牠適應了」不算落點，那是沒有結尾。
@@ -347,10 +367,17 @@ def check(script: dict) -> tuple[int, list[str]]:
                 issues.append(f"Shot {sid} 的 image_prompt 含攝影術語「{w}」，"
                               f"會把插畫風壓成寫實照片，須刪掉（風格由 style preset 統一附加）")
                 break
-        if ip and not any(c in ip for c in MOTION_CUES):
+        if ip and not _has_motion(ip):
             issues.append(f"Shot {sid} 的 image_prompt 沒有任何動態姿勢線索，"
                           f"畫面會是靜止的擺拍。須改寫成動作進行到一半的瞬間"
                           f"（例如 mid-stride / paw lifted / turning / about to leap）")
+
+    # 旁白過密 —— 鏡頭切短之後，格格都講會變連珠砲，而且會被字數上限砍成殘句
+    if len(shots) >= 6:
+        with_nar = [s_ for s_ in shots if (s_.get("narration") or "").strip()]
+        if len(with_nar) > max(4, len(shots) * 0.5):
+            issues.append(f"{len(with_nar)}/{len(shots)} 格都有旁白，太密。"
+                          f"純動作的格子應該留空並縮到 1.5 秒，有旁白的格子給 2~2.5 秒")
 
     # image_prompt 重複 / 場景太單薄 —— 2026-09-25 實測踩到：
     # LLM 會把提示詞裡的英文範例逐字照抄，導致多格相同且完全沒有場景描述。

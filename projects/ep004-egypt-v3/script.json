@@ -1,0 +1,81 @@
+{
+  "title": "橘貓穿越古埃及",
+  "hook": "小橘在現代公寓醒來",
+  "character": "Xiao Ju",
+  "shots": [
+    {
+      "id": 1,
+      "duration_sec": 1.5,
+      "action": "小橘在現代公寓醒來",
+      "image_prompt": "a small round-faced orange and white tabby cat, distinct M-shaped stripe on forehead, a small white notch on the tip of the right ear, large amber eyes, wearing a worn dark blue cloth collar with a small brass bell, white-tipped tail, mid-stride, running across a modern living room floor with a couch and coffee table in the background, vertical composition, cinematic lighting",
+      "narration": "不是我家",
+      "subtitle": "不是我家",
+      "camera": "push_in"
+    },
+    {
+      "id": 2,
+      "duration_sec": 1.5,
+      "action": "小橘撞上石牆",
+      "image_prompt": "a small round-faced orange and white tabby cat, distinct M-shaped stripe on forehead, a small white notch on the tip of the right ear, large amber eyes, wearing a worn dark blue cloth collar with a small brass bell, white-tipped tail, mid-leap, mid-air, in front of a stone wall with hieroglyphics, vertical composition, cinematic lighting",
+      "narration": "這是哪",
+      "subtitle": "這是哪",
+      "camera": "pan_left"
+    },
+    {
+      "id": 3,
+      "duration_sec": 1.5,
+      "action": "小橘跌進沙地",
+      "image_prompt": "a small round-faced orange and white tabby cat, distinct M-shaped stripe on forehead, a small white notch on the tip of the right ear, large amber eyes, wearing a worn dark blue cloth collar with a small brass bell, white-tipped tail, mid-fall, tumbling into a sand dune with a distant pyramid, vertical composition, cinematic lighting",
+      "narration": "我迷路",
+      "subtitle": "我迷路",
+      "camera": "pan_right"
+    },
+    {
+      "id": 4,
+      "duration_sec": 1.5,
+      "action": "小橘被法老追捕",
+      "image_prompt": "a small round-faced orange and white tabby cat, distinct M-shaped stripe on forehead, a small white notch on the tip of the right ear, large amber eyes, wearing a worn dark blue cloth collar with a small brass bell, white-tipped tail, mid-sprint, running through a desert with a pharaoh's guard in the distance, vertical composition, cinematic lighting",
+      "narration": "快跑",
+      "subtitle": "快跑",
+      "camera": "pan_left"
+    },
+    {
+      "id": 5,
+      "duration_sec": 1.5,
+      "action": "小橘躲進神廟",
+      "image_prompt": "a small round-faced orange and white tabby cat, distinct M-shaped stripe on forehead, a small white notch on the tip of the right ear, large amber eyes, wearing a worn dark blue cloth collar with a small brass bell, white-tipped tail, mid-crouch, hiding behind a stone pillar in an ancient temple, vertical composition, cinematic lighting",
+      "narration": "我害怕",
+      "subtitle": "我害怕",
+      "camera": "pull_out"
+    },
+    {
+      "id": 6,
+      "duration_sec": 1.5,
+      "action": "小橘看到自己的影子",
+      "image_prompt": "a small round-faced orange and white tabby cat, distinct M-shaped stripe on forehead, a small white notch on the tip of the right ear, large amber eyes, wearing a worn dark blue cloth collar with a small brass bell, white-tipped tail, mid-recoiling, seeing its own shadow on the temple wall, vertical composition, cinematic lighting",
+      "narration": "這是影",
+      "subtitle": "這是影",
+      "camera": "push_in"
+    },
+    {
+      "id": 7,
+      "duration_sec": 1.5,
+      "action": "小橘驚訝地看著自己的影子",
+      "image_prompt": "a small round-faced orange and white tabby cat, distinct M-shaped stripe on forehead, a small white notch on the tip of the right ear, large amber eyes, wearing a worn dark blue cloth collar with a small brass bell, white-tipped tail, mid-recoiling, staring at its own shadow on the temple wall with hieroglyphics, vertical composition, cinematic lighting",
+      "narration": "我是神",
+      "subtitle": "我是神",
+      "camera": "push_in"
+    },
+    {
+      "id": 8,
+      "duration_sec": 2.5,
+      "action": "小橘被神像接納",
+      "image_prompt": "a small round-faced orange and white tabby cat, distinct M-shaped stripe on forehead, a small white notch on the tip of the right ear, large amber eyes, wearing a worn dark blue cloth collar with a small brass bell, white-tipped tail, mid-landing, sitting in front of a stone statue of a cat god, vertical composition, cinematic lighting",
+      "narration": "我有家",
+      "subtitle": "我有家",
+      "camera": "static"
+    }
+  ],
+  "type": "story",
+  "form": "quadruped"
+}
