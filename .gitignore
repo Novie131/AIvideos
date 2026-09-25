@@ -29,3 +29,6 @@ projects/*/.work/
 # 例外：README 用的示意圖（人工挑選的少數幾張，不是產出物）
 !Document/assets/
 !Document/assets/**
+
+# 姿勢偵測模型（可重新下載）
+models/

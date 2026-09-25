@@ -8,6 +8,13 @@
 
 輸出刻意畫成 **OpenPose COCO-18 的標準配色與連線**，因為 ControlNet / VACE
 的姿勢模型就是拿這個格式訓練的 —— 自創畫法會讓控制失效。
+
+**為什麼用 Apple Vision 而不是 MediaPipe**（2026-09-25 實測）：
+- mediapipe 1.0.1 的 Tasks API 在 macOS 上必崩 —— TensorsToDetectionsCalculator
+  初始化 Metal 時直接 abort（DrishtiMetalHelper），設 delegate=CPU 也擋不住
+- mediapipe 0.10.x 的舊 solutions API **根本沒包進 arm64 的 wheel**
+- Vision 是系統內建、零下載、Apple 自己維護，而且原生就有 neck 關節
+  （MediaPipe 要用兩肩中點推算）
 """
 from __future__ import annotations
 import json, math
@@ -40,29 +47,76 @@ MIN_VIS = 0.35          # 低於此可見度視為沒偵測到，寧缺勿錯
 STICK_W, JOINT_R = 4, 4
 
 
-def _landmarker():
-    """建立 MediaPipe 姿勢偵測器。模型檔首次使用會自動下載（約 10MB）。"""
-    import mediapipe as mp
-    return mp.solutions.pose.Pose(static_image_mode=False, model_complexity=1,
-                                  min_detection_confidence=0.5,
-                                  min_tracking_confidence=0.5)
+# ---------- Apple Vision 的關節名稱 → OpenPose COCO-18 ----------
+# Vision 用 19 個關節，其中 root（骨盆中心）OpenPose 沒有，捨棄。
+# 順序必須與 JOINTS 完全一致。
+# Vision 沒有 nose，用 head_joint 當 OpenPose 的 0 號點。
+# Vision 的命名習慣：forearm = 肘、hand = 腕、upLeg = 髖、leg = 膝、foot = 踝。
+VISION_TO_COCO = (
+    "head_joint",
+    None,                                                    # neck，見 NECK_JOINT
+    "right_shoulder_1_joint", "right_forearm_joint", "right_hand_joint",
+    "left_shoulder_1_joint", "left_forearm_joint", "left_hand_joint",
+    "right_upLeg_joint", "right_leg_joint", "right_foot_joint",
+    "left_upLeg_joint", "left_leg_joint", "left_foot_joint",
+    "right_eye_joint", "left_eye_joint", "right_ear_joint", "left_ear_joint",
+)
+NECK_JOINT = "neck_1_joint"     # Vision 原生就有，不用推算
 
 
-def to_coco18(lms, w: int, h: int) -> list[tuple[float, float] | None]:
-    """MediaPipe 的 33 點 → OpenPose 的 18 點（像素座標）。"""
-    pts: list[tuple[float, float] | None] = []
-    for mp_i in MP_TO_COCO:
-        if mp_i is None:
-            pts.append(None)                     # neck，稍後補
-            continue
-        lm = lms[mp_i]
-        vis = getattr(lm, "visibility", 1.0)
-        pts.append((lm.x * w, lm.y * h) if vis >= MIN_VIS else None)
-    # neck = 兩肩中點
-    rs, ls = pts[2], pts[5]
-    if rs and ls:
-        pts[1] = ((rs[0] + ls[0]) / 2, (rs[1] + ls[1]) / 2)
+def to_coco18(points: dict, w: int, h: int) -> list[tuple[float, float] | None]:
+    """Vision 的關節字典 → OpenPose 的 18 點（像素座標）。
+
+    Vision 的座標是正規化的，且**原點在左下角**（Quartz 慣例），
+    所以 y 要翻轉才會對上影像座標系。
+    """
+    def pick(name):
+        pt = points.get(name)
+        if pt is None or pt.confidence() < MIN_VIS:
+            return None
+        loc = pt.location()
+        return (loc.x * w, (1.0 - loc.y) * h)     # ← y 翻轉
+
+    pts = [pick(n) if n else None for n in VISION_TO_COCO]
+    pts[1] = pick(NECK_JOINT)                     # neck，Vision 原生提供
+    if pts[1] is None:                            # 保險：退回兩肩中點
+        rs, ls = pts[2], pts[5]
+        if rs and ls:
+            pts[1] = ((rs[0] + ls[0]) / 2, (rs[1] + ls[1]) / 2)
     return pts
+
+
+def _detect(rgb: "np.ndarray"):
+    """對一張 RGB numpy 影像做人體姿勢偵測，回傳關節字典（沒偵測到回 None）。"""
+    import Quartz, Vision
+    from CoreFoundation import CFDataCreate
+    h, w = rgb.shape[:2]
+    data = CFDataCreate(None, rgb.tobytes(), rgb.size)
+    prov = Quartz.CGDataProviderCreateWithCFData(data)
+    cg = Quartz.CGImageCreate(
+        w, h, 8, 24, w * 3, Quartz.CGColorSpaceCreateDeviceRGB(),
+        Quartz.kCGBitmapByteOrderDefault, prov, None, False,
+        Quartz.kCGRenderingIntentDefault)
+    handler = Vision.VNImageRequestHandler.alloc().initWithCGImage_options_(cg, None)
+    req = Vision.VNDetectHumanBodyPoseRequest.alloc().init()
+    ok, _ = handler.performRequests_error_([req], None)
+    obs = req.results()
+    if not ok or not obs:
+        return None
+
+    # 畫面裡可能有路人。挑「主體」＝骨架在畫面上最高的那一個
+    #（取代單純取 obs[0]）—— 用關節的垂直跨度當身高代理，離鏡頭近的人跨度大。
+    best, best_h = None, -1.0
+    for o in obs:
+        pts, _ = o.recognizedPointsForJointsGroupName_error_(
+            Vision.VNHumanBodyPoseObservationJointsGroupNameAll, None)
+        ys = [pt.location().y for pt in pts.values() if pt.confidence() >= MIN_VIS]
+        if len(ys) < 6:
+            continue
+        span = max(ys) - min(ys)
+        if span > best_h:
+            best, best_h = pts, span
+    return best
 
 
 def draw_pose(pts, w: int, h: int) -> Image.Image:
@@ -80,43 +134,59 @@ def draw_pose(pts, w: int, h: int) -> Image.Image:
     return img
 
 
-def extract(video: str | Path, out_dir: str | Path, *, fps: int | None = None,
+def _probe(video: Path) -> tuple[int, int, float, float]:
+    """回傳 (寬, 高, fps, 秒數)。"""
+    import subprocess
+    out = subprocess.run(
+        ["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries",
+         "stream=width,height,r_frame_rate", "-show_entries", "format=duration",
+         "-of", "json", str(video)], capture_output=True, text=True, check=True).stdout
+    d = json.loads(out)
+    st = d["streams"][0]
+    num, den = (st["r_frame_rate"].split("/") + ["1"])[:2]
+    return int(st["width"]), int(st["height"]), int(num) / int(den), float(d["format"]["duration"])
+
+
+def extract(video: str | Path, out_dir: str | Path, *, fps: int = 16,
             size: tuple[int, int] | None = None,
             on_step=lambda text, pct=None: None) -> dict:
     """影片 → 骨架線框 PNG 序列 + 關節座標 JSON。
 
-    fps：重取樣到這個影格率（None = 沿用原片）。影片模型通常吃 16 或 24。
+    用 ffmpeg 解影格（不用 opencv）—— ffmpeg 本來就是這個專案的硬需求，
+    而且重取樣影格率與縮放可以在同一個濾鏡鏈裡做完。
+
+    fps：重取樣到這個影格率。影片模型通常吃 16 或 24。
     size：輸出尺寸（None = 沿用原片）。VACE 要求長寬可被 32 整除。
     """
-    import cv2
+    import subprocess
     video, out_dir = Path(video), Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
-    cap = cv2.VideoCapture(str(video))
-    if not cap.isOpened():
-        raise RuntimeError(f"打不開影片：{video}")
-
-    src_fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
-    total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
-    sw, sh = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)), int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    sw, sh, src_fps, dur = _probe(video)
     ow, oh = size or (sw, sh)
-    step = max(1, round(src_fps / fps)) if fps else 1
+    if ow % 32 or oh % 32:
+        on_step(f"⚠ 輸出 {ow}x{oh} 不是 32 的倍數，VACE 會自行調整尺寸", None)
+    expect = max(int(dur * fps), 1)
 
-    on_step(f"來源 {sw}x{sh} @ {src_fps:.1f}fps，共 {total} 格；輸出 {ow}x{oh}"
-            + (f"，每 {step} 格取 1" if step > 1 else ""), 0)
+    on_step(f"來源 {sw}x{sh} @ {src_fps:.1f}fps / {dur:.1f} 秒 → "
+            f"輸出 {ow}x{oh} @ {fps}fps，預計 {expect} 格", 0)
 
-    pose = _landmarker()
-    kept, missed, frames = 0, 0, []
-    i = 0
+    proc = subprocess.Popen(
+        ["ffmpeg", "-v", "error", "-i", str(video),
+         "-vf", f"fps={fps},scale={ow}:{oh}:force_original_aspect_ratio=increase,"
+                f"crop={ow}:{oh}",
+         "-f", "rawvideo", "-pix_fmt", "rgb24", "-"],
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+    nbytes = ow * oh * 3
+    kept, missed, frames, i = 0, 0, [], 0
     while True:
-        ok, frame = cap.read()
-        if not ok:
+        raw = proc.stdout.read(nbytes)
+        if len(raw) < nbytes:
             break
-        if i % step:
-            i += 1
-            continue
-        res = pose.process(frame[:, :, ::-1])           # BGR → RGB
-        if res.pose_landmarks:
-            pts = to_coco18(res.pose_landmarks.landmark, ow, oh)
+        rgb = np.frombuffer(raw, np.uint8).reshape(oh, ow, 3)
+        found = _detect(np.ascontiguousarray(rgb))
+        if found:
+            pts = to_coco18(found, ow, oh)
             draw_pose(pts, ow, oh).save(out_dir / f"pose-{kept:04d}.png")
             frames.append({"i": kept, "src_frame": i,
                            "pts": [list(p) if p else None for p in pts]})
@@ -124,17 +194,18 @@ def extract(video: str | Path, out_dir: str | Path, *, fps: int | None = None,
         else:
             missed += 1
         i += 1
-        if total and i % 30 == 0:
-            on_step(f"已處理 {i}/{total} 格，抽到 {kept} 個姿勢", round(i / total * 100))
-    cap.release()
-    pose.close()
+        if i % 20 == 0:
+            on_step(f"已處理 {i}/{expect} 格，抽到 {kept} 個姿勢",
+                    round(min(i / expect, 1) * 100))
+    proc.stdout.close()
+    proc.wait()
 
-    meta = {"source": str(video), "src_fps": round(src_fps, 2), "out_fps": fps or src_fps,
-            "size": [ow, oh], "frames_kept": kept, "frames_missed": missed,
-            "detect_rate": round(kept / max(kept + missed, 1), 3), "frames": frames}
+    meta = {"source": str(video), "src_fps": round(src_fps, 2), "out_fps": fps,
+            "size": [ow, oh], "frames_total": i, "frames_kept": kept,
+            "frames_missed": missed,
+            "detect_rate": round(kept / max(i, 1), 3), "frames": frames}
     (out_dir / "poses.json").write_text(json.dumps(meta, ensure_ascii=False), encoding="utf-8")
-
-    on_step(f"完成：{kept} 格有骨架、{missed} 格沒偵測到"
+    on_step(f"完成：{i} 格中抽到 {kept} 個姿勢、{missed} 格沒偵測到"
             f"（偵測率 {meta['detect_rate']:.0%}）", 100)
     return meta
 
