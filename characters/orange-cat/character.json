@@ -17,11 +17,26 @@
     },
     "anthro": {
       "label": "人形（可雙足跳舞／演奏）",
-      "modifier": "full-body anthropomorphic cat character, bipedal, standing upright like a human, human-like shoulders, arms and hands, the character is",
+      "modifier": "full-body anthropomorphic cat character, bipedal, standing upright like a human, slender athletic humanoid build with long arms and long legs, lanky limbs, adult body proportions, one head, single head, human-like shoulders arms and hands, the character is",
       "can": "跳舞、彈奏樂器、拿道具、比手勢",
       "cannot": "自然的貓科動作（四足奔跑會變怪）",
       "_placement": "prefix",
-      "_why_prefix": "擴散模型對提示詞前段權重高得多。這段必須在 appearance_en 之前，「the character is」結尾是為了讓外觀描述自然接在後面。"
-    }
+      "_why_prefix": "擴散模型對提示詞前段權重高得多。這段必須在 appearance_en 之前，「the character is」結尾是為了讓外觀描述自然接在後面。",
+      "negative_extra": "multiple heads, two heads, extra heads, duplicate faces, cloned head",
+      "refs": {
+        "lanky": {
+          "file": "ref/anthro-lanky.png",
+          "_note": "比例接近人體骨架，VACE 姿勢驅動首選。代價：軀幹偏長，可愛度不如 chibi"
+        },
+        "chibi": {
+          "file": "ref/anthro-chibi.png",
+          "_note": "約 3 頭身，最接近故事軌那隻圓臉小橘。若 VACE 對比例容忍度夠就用這張"
+        }
+      }
+    },
+    "_prompt_traps": [
+      "不要用 'N heads tall'（頭身比）—— 2026-09-25 實測：six/seven heads tall 會讓模型照字面生出五顆頭的怪物。那是人類畫師的術語，擴散模型不懂。改用 slender / lanky / long arms and long legs / adult body proportions，並在負面詞加 multiple heads。",
+      "型態修飾詞必須是前綴。放在 appearance_en 之後完全無效。"
+    ]
   }
 }
