@@ -1,9 +1,11 @@
 # AI Shorts 地端產線 — 規劃與研究方向
 
-- 版本：**v2.2**
+- 版本：**v2.3**
 - 更新日期：**2026-09-22**
 - 上一版：v2（2026-09-20，Z-Image + Qwen-Edit 路線，本版沿用，僅補實測）
 - 再上一版：v1（2026-09-08，SDXL + IP-Adapter 路線，v2 已部分推翻）
+
+**v2.3 改了什麼**：新增 ADR-011（內容分兩軌）、ADR-012（動作感靠切與出圖姿勢）、ADR-013（VACE 停損）。進度快照見 `plan/progress-2026-09-28.md`。
 
 **v2.2 改了什麼**：新增 ADR-010（目標重排：先發一支片，bake-off 延後）與 §10（兩週計畫）。這是本文件第一次因為**目的改變**而非技術發現而調整，詳見 ADR-010。
 
@@ -367,6 +369,60 @@ bake-off 不取消，移到第一支片發布之後。屆時它的輸入還更�
    於是 init 圖尺寸對不上被丟棄，**靜默退回 T2V**，產出完全無關的畫面。
 3. `strength: 1.0` = 忽略起始圖（A1111 語義）。另外 **Wan 是非蒸餾模型，
    12 步會產生色階斷層的廢圖**，要 25 步 —— 不能套用 Z-Image Turbo 的 8 步直覺。
+
+### ADR-013 — VACE 姿勢驅動：HTTP API 走不通，已停損 ⏸ 新增（2026-09-28）
+
+**目標**：使用者上傳舞蹈影片 → 抽骨架 → VACE 生成「人形小橘跳那支舞」。
+
+**前三關已通**（都不需要下載任何東西，這是刻意的順序）：
+
+1. **姿勢抽取** `[已驗證]` — `studio/posegen.py`，Apple Vision，偵測率 **100%**，9 秒影片跑 1.9 秒
+2. **控制素材** `[已驗證]` — 舞蹈影片合格：單人、全身、佔畫面 57%、每格偵測到 17.6/18 個關節
+3. **人形角色** `[已驗證]` — `characters/orange-cat/ref/anthro-{lanky,chibi}.png`，小橘特徵全保住
+
+**第四關失敗**：VACE 的控制輸入接不上 HTTP API。
+
+**8 輪測試，約 1.5 小時生成時間**：
+
+| # | 假設 | 結果 |
+|---|---|---|
+| 1 | `init_images` 在 `txt2img` | HTTP 422（那是 img2img 的欄位） |
+| 2 | `moodboard` / `controls[0].image` 等欄位名 | 被接受但無效 |
+| 3 | 控制權重 100% → 50% → 30% | 骨架原樣返回，降權重只讓它變半透明 |
+| 4 | `controlImportance` 改 `prompt` | 同上 |
+| 5 | `inputOverride: "custom"` | 同上 |
+| 6 | `inputOverride: "pose"`（**從原始碼 enum 讀出來的正確值**） | 同上 |
+| 7 | 單張圖 → **25 張骨架序列** | **行為改變**：產出貓且手臂跟骨架呼應 |
+| 8 | 25 影格 / 25 步 / strength 0.75 / 權重 0.85 | 10 分鐘，**仍不可用**：糊、下半身溶解 |
+
+**決定性證據**：第 8 輪輸出的背景是**深灰色**，而骨架圖的背景是**純黑**。
+那是黑底以 `1 - strength` 的比例滲進畫面 —— 代表 `init_images` 被當成
+**img2img 的起始畫面**，不是控制訊號。第 7 輪那個「手臂跟著骨架張開」的現象
+**不是姿勢驅動，是圖層混合的殘影**，我當下判斷錯了。
+
+**結論** `[已驗證]`：**VACE 的控制輸入不走 `init_images`，HTTP API 沒有暴露那個通道。**
+
+**停損理由**：8 輪都在猜，每輪 8~12 分鐘生成時間。再猜下去成本超過收益。
+
+**回來後的順序**：
+
+- **A（建議）**：GUI 手動跑成功一次，成功後**不關 App、不改設定**，
+  直接 `curl /sdapi/v1/options` 抓完整快照反推。前面查取樣器、shift、
+  `cfg_zero_star`、VACE 控制物件結構都是這樣拿到的，每次都比猜快。
+- **B**：改走卡點剪接 —— 骨架當出圖的姿勢參考，一格一格出圖再依節拍剪。
+  所有零件都已驗證可用，動作不連續但今天就能做。
+- **C**：gRPC 協議（官方稱「支援更豐富靈活的生成」），代價是要寫 protobuf 客戶端。
+
+**順帶挖到的 Draw Things 內部知識**（`gh api repos/drawthingsai/draw-things-community/contents/<path>`）：
+
+- `Libraries/Scripting/Sources/ScriptModels.swift` 就是 HTTP API 的完整結構定義
+- `ControlInputType` enum 的 19 個合法值：`unspecified, custom, depth, canny,
+  scribble, pose, normalbae, color, lineart, softedge, seg, inpaint, ip2p,
+  shuffle, mlsd, tile, blur, lowquality, gray`
+- **比對不中會靜默落回預設，不報錯** —— 所以送 `"moodboard"`、`"zzz_invalid"` 都「被接受」，其實等於沒設
+
+**這是 Draw Things 的通則**：它傾向靜默修正而非拒絕（尺寸不是 32 倍數會默默改、
+`say` 未安裝的語音會產出空音檔）。**接受不等於生效，一定要驗證輸出。**
 
 ---
 
